@@ -629,7 +629,7 @@ static int __breakpoint (void *bp, RBreakpointItem *b, bool set) {
             {
                 // need to translate the virtual address to physical
                 addr_t paddr;
-                status = vmi_translate_kv2p(g_rio_vmi->vmi, bp_vaddr, &paddr);
+                status = vmi_translate_uv2p(g_rio_vmi->vmi, bp_vaddr, rio_vmi->pid, &paddr);
                 if (VMI_FAILURE == status)
                 {
                     eprintf("Fail to get physical addresss\n");
