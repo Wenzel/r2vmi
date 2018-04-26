@@ -1,0 +1,9 @@
+# QtCreator
+*.config
+*.creator
+*.creator.user
+*.files
+*.includes
+
+# C
+*.so
