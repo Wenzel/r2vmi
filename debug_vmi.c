@@ -3,116 +3,13 @@
 #include <strings.h>
 
 #include "io_vmi.h"
-
-#define LINEAR48(x)    ((x) &= 0xffffffffffff)
+#include "utils.h"
 
 static RIOVmi *g_rio_vmi = NULL;
 
 // vmi_events_listen loop
 static bool interrupted = false;
 
-typedef struct
-{
-    uint64_t pid_cr3;
-    addr_t bp_vaddr;
-} bp_event_data;
-
-//
-// helpers
-//
-// stolen from libvmi/examples/step-event-example
-static void print_event(vmi_event_t *event)
-{
-    printf("\tPAGE ACCESS: %c%c%c for GFN %"PRIx64" (offset %06"PRIx64") gla %016"PRIx64" (vcpu %u)\n",
-           (event->mem_event.out_access & VMI_MEMACCESS_R) ? 'r' : '-',
-           (event->mem_event.out_access & VMI_MEMACCESS_W) ? 'w' : '-',
-           (event->mem_event.out_access & VMI_MEMACCESS_X) ? 'x' : '-',
-           event->mem_event.gfn,
-           event->mem_event.offset,
-           event->mem_event.gla,
-           event->vcpu_id
-           );
-}
-
-// compare 2 virtual addresses
-static bool vaddr_equal(vmi_instance_t vmi, addr_t vaddr1, addr_t vaddr2)
-{
-    page_mode_t page_mode = vmi_get_page_mode(vmi, 0);
-
-    switch (page_mode) {
-    case VMI_PM_IA32E:
-        // only 48 bits are used by the MMU as linear address
-        if (LINEAR48(vaddr1) == LINEAR48(vaddr2))
-            return true;
-        break;
-    default:
-        eprintf("Unhandled page mode");
-        break;
-    }
-    return false;
-}
-
-static char* dtb_to_pname(vmi_instance_t vmi, addr_t dtb) {
-    addr_t ps_head = 0;
-    addr_t flink = 0;
-    addr_t start_proc = 0;
-    addr_t pdb_offset = 0;
-    addr_t tasks_offset = 0;
-    addr_t name_offset = 0;
-    addr_t value = 0;
-    status_t status;
-
-
-    status = vmi_get_offset(vmi, "win_tasks", &tasks_offset);
-    if (VMI_FAILURE == status)
-    {
-        printf("failed\n");
-        return NULL;
-    }
-
-    status = vmi_get_offset(vmi, "win_pdbase", &pdb_offset);
-    if (VMI_FAILURE == status)
-    {
-        printf("failed\n");
-        return NULL;
-    }
-
-    status = vmi_get_offset(vmi, "win_pname", &name_offset);
-    if (VMI_FAILURE == status)
-    {
-        printf("failed\n");
-        return NULL;
-    }
-    status = vmi_translate_ksym2v(vmi, "PsActiveProcessHead", &ps_head);
-    if (VMI_FAILURE == status)
-    {
-        printf("failed\n");
-        return NULL;
-    }
-    status = vmi_read_addr_ksym(vmi, "PsActiveProcessHead", &flink);
-    if (VMI_FAILURE == status)
-    {
-        printf("failed\n");
-        return NULL;
-    }
-
-    while (flink != ps_head)
-    {
-        // get eprocess head
-        start_proc = flink - tasks_offset;
-
-        // get dtb value
-        vmi_read_addr_va(vmi, start_proc + pdb_offset, 0, &value);
-        if (value == dtb)
-        {
-            // read process name
-            return vmi_read_str_va(vmi, start_proc + name_offset, 0);
-        }
-        // read new flink
-        vmi_read_addr_va(vmi, flink, 0, &flink);
-    }
-    return NULL;
-}
 
 //
 // callbacks
@@ -184,6 +81,7 @@ static event_response_t cb_on_sstep(vmi_instance_t vmi, vmi_event_t *event) {
 
 static event_response_t cb_on_cr3_load(vmi_instance_t vmi, vmi_event_t *event){
     RIOVmi *rio_vmi = NULL;
+    status_t status;
     pid_t pid = 0;
     char* proc_name = NULL;
     bool found = false;
@@ -202,12 +100,27 @@ static event_response_t cb_on_cr3_load(vmi_instance_t vmi, vmi_event_t *event){
     proc_name = dtb_to_pname(vmi, event->reg_event.value);
     if (!proc_name)
     {
-        printf("can't find process\n");
+        printf("CR3: 0x%lx can't find process\n", event->reg_event.value);
+        // stop monitoring
         interrupted = true;
+        // pause the VM before we get out of main loop
+        status = vmi_pause_vm(vmi);
+        if (status == VMI_FAILURE)
+        {
+            eprintf("Fail to pause VM\n");
+            return 0;
+        }
+        // if we can't find the process in the list
+        // it means we have intercepted a new CR3
+        rio_vmi->attach_new_process = true;
+        // set current VCPU
+        rio_vmi->current_vcpu = event->vcpu_id;
+        // save new CR3 value
+        rio_vmi->pid_cr3 = event->reg_event.value;
         return 0;
     }
 
-    status_t status = vmi_dtb_to_pid(vmi, (addr_t) event->reg_event.value, &pid);
+    status = vmi_dtb_to_pid(vmi, (addr_t) event->reg_event.value, &pid);
     if (status == VMI_FAILURE)
     {
         eprintf("ERROR (%s): fail to retrieve pid from cr3\n", __func__);
@@ -429,6 +342,16 @@ static int __attach(RDebug *dbg, int pid) {
 
     // set attached to allow reg_read
     rio_vmi->attached = true;
+
+    // did we attached to a new process ?
+    if (rio_vmi->attach_new_process)
+    {
+        return attach_new_process(dbg);
+    }
+    else
+    {
+        eprintf("Attaching to existing process is not implemented\n");
+    }
 
     return 0;
 }

@@ -20,6 +20,16 @@ typedef struct {
     // table [rip] -> [vmi_event_t]
     // event might be int3 or mem_event
     GHashTable *bp_events_table;
+    // if we are attaching to a new process being created
+    // or if the process is already existing
+    bool attach_new_process;
 } RIOVmi;
+
+typedef struct
+{
+    RIOVmi *rio_vmi;
+    uint64_t pid_cr3;
+    addr_t bp_vaddr;
+} bp_event_data;
 
 #endif // IO_VMI_H

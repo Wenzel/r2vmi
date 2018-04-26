@@ -9,7 +9,7 @@ LDFLAGS += $(R2_LDFLAGS) $(VMI_LDFLAGS)
 
 all: $(TARGETS)
 
-%.$(SO_EXT): %.c
+%.$(SO_EXT): %.c profile.c utils.c
 	$(CC) $(CFLAGS) $^ -o $@ $(LDFLAGS)
 
 install: all
