@@ -430,10 +430,6 @@ static int __attach(RDebug *dbg, int pid) {
     // set attached to allow reg_read
     rio_vmi->attached = true;
 
-    addr_t vaddr;
-    vmi_translate_ksym2v(rio_vmi->vmi, "PsActiveProcessHead", &vaddr);
-    printf("process head: %p\n", vaddr);
-
     return 0;
 }
 
