@@ -241,6 +241,7 @@ RIOPlugin r_io_plugin_vmi = {
     .read = __read,
     .write = __write,
     .getpid = __getpid,
+    .gettid = __gettid,
     .system = __system,
     .isdbg = true,
 };
