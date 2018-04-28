@@ -6,6 +6,7 @@
 #include <errno.h>
 
 #include "io_vmi.h"
+#include "profile.h"
 
 #define URI_PREFIX "vmi://"
 
@@ -54,6 +55,7 @@ static RIODesc *__open(RIO *io, const char *pathname, int flags, int mode) {
     long pid = 0;
     char *uri_content = NULL;
     char *saveptr = NULL;
+    bool success = false;
 
     if (!__plugin_open(io, pathname, 0))
         return ret;
@@ -112,6 +114,14 @@ static RIODesc *__open(RIO *io, const char *pathname, int flags, int mode) {
         eprintf("vmi_init_complete: Failed to initialize LibVMI, error: %d\n", error);
         goto out;
     }
+
+    success = load_symbols(rio_vmi->vmi);
+    if (!success)
+    {
+        eprintf("Cannot load symbols from Rekall profile\n");
+        goto out;
+    }
+
     return r_io_desc_new (io, &r_io_plugin_vmi, pathname, flags | R_IO_WRITE, mode, rio_vmi);
 
 out:
