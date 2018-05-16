@@ -130,19 +130,7 @@ static event_response_t cb_on_cr3_load(vmi_instance_t vmi, vmi_event_t *event){
     printf("Intercepted PID: %d, CR3: 0x%lx, Name: %s, RIP: 0x%lx\n",
            pid, event->reg_event.value, proc_name, event->x86_regs->rip);
 
-    if (rio_vmi->url_identify_by_name &&
-            !strncasecmp(proc_name, rio_vmi->proc_name, strlen(rio_vmi->proc_name)))
-    {
-        found = true;
-        rio_vmi->pid = pid;
-    }
-    else if (!rio_vmi->url_identify_by_name && pid == rio_vmi->pid)
-    {
-        found = true;
-        rio_vmi->proc_name = strdup(proc_name);
-    }
-
-    if (found)
+    if (is_target_process(rio_vmi, proc_name, event->reg_event.value))
     {
         // delete old and maybe partial name for the full proc name
         free(rio_vmi->proc_name);
@@ -289,6 +277,8 @@ static int __attach(RDebug *dbg, int pid) {
         eprintf("%s: Invalid RIOVmi\n", __func__);
         return 1;
     }
+
+
     // hack to get rio_vmi in __breakpoint
     g_rio_vmi = rio_vmi;
 
