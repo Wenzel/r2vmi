@@ -5,6 +5,11 @@
 
 #define LINEAR48(x)    ((x) &= 0xffffffffffff)
 
+// hardcoded, waiting for new libvmi rekall API
+#define EPROC_THREAD_HEAD_OFF   0x308
+#define W32_START_OFF           0x418
+#define ETH_THREAD_HEAD_OFF     0x428
+
 static bool interrupted = false;
 
 typedef struct
@@ -221,7 +226,7 @@ static event_response_t cb_on_continue_until_event(vmi_instance_t vmi, vmi_event
     return VMI_EVENT_RESPONSE_NONE;
 }
 
-static bool continue_until(RIOVmi *rio_vmi, addr_t addr)
+static bool continue_until(RIOVmi *rio_vmi, addr_t addr, bool kernel_translate)
 {
     printf("%s\n", __func__);
     status_t status;
@@ -253,7 +258,10 @@ static bool continue_until(RIOVmi *rio_vmi, addr_t addr)
 
     // build memory event
     // get paddr
-    status = vmi_translate_kv2p(rio_vmi->vmi, addr, &paddr);
+    if (kernel_translate)
+        status = vmi_translate_kv2p(rio_vmi->vmi, addr, &paddr);
+    else
+        status = vmi_translate_uv2p(rio_vmi->vmi, rio_vmi->pid, addr, &paddr);
     if (status == VMI_FAILURE)
     {
         eprintf("Fail to get paddr for 0x%lx\n", addr);
@@ -319,6 +327,78 @@ static bool continue_until(RIOVmi *rio_vmi, addr_t addr)
     return true;
 }
 
+static addr_t find_eprocess(vmi_instance_t vmi, uint64_t dtb)
+{
+    addr_t ps_head = 0;
+    addr_t flink = 0;
+    addr_t start_proc = 0;
+    addr_t pdb_offset = 0;
+    addr_t tasks_offset = 0;
+    addr_t value = 0;
+    status_t status;
+
+
+    status = vmi_get_offset(vmi, "win_tasks", &tasks_offset);
+    if (VMI_FAILURE == status)
+    {
+        printf("failed\n");
+        return 0;
+    }
+
+    status = vmi_get_offset(vmi, "win_pdbase", &pdb_offset);
+    if (VMI_FAILURE == status)
+    {
+        printf("failed\n");
+        return 0;
+    }
+
+    status = vmi_translate_ksym2v(vmi, "PsActiveProcessHead", &ps_head);
+    if (VMI_FAILURE == status)
+    {
+        printf("failed\n");
+        return 0;
+    }
+    status = vmi_read_addr_ksym(vmi, "PsActiveProcessHead", &flink);
+    if (VMI_FAILURE == status)
+    {
+        printf("failed\n");
+        return 0;
+    }
+
+    while (flink != ps_head)
+    {
+        // get eprocess head
+        start_proc = flink - tasks_offset;
+
+        // get dtb value
+        vmi_read_addr_va(vmi, start_proc + pdb_offset, 0, &value);
+        if (value == dtb)
+        {
+            // read process name
+            return start_proc;
+        }
+        // read new flink
+        vmi_read_addr_va(vmi, flink, 0, &flink);
+    }
+    return 0;
+}
+
+static addr_t find_ethread(vmi_instance_t vmi, addr_t eproc)
+{
+    addr_t ethread;
+    addr_t thread_list_head;
+    status_t status;
+
+    status = vmi_read_addr_va(vmi, eproc + EPROC_THREAD_HEAD_OFF, 0, &thread_list_head);
+    if (status == VMI_FAILURE)
+    {
+        eprintf("Cannot read ethread\n");
+        return 0;
+    }
+    ethread = thread_list_head - ETH_THREAD_HEAD_OFF;
+    return ethread;
+}
+
 bool attach_new_process(RDebug *dbg)
 {
     RIODesc *desc = NULL;
@@ -338,8 +418,33 @@ bool attach_new_process(RDebug *dbg)
         return false;
     }
     printf("KiStartUserThread: 0x%lx\n", start_thread_addr);
-    continue_until(rio_vmi, start_thread_addr);
-    // set pid and proc name
+    continue_until(rio_vmi, start_thread_addr, true);
+
+    addr_t eproc = find_eprocess(rio_vmi->vmi, rio_vmi->pid_cr3);
+    if (!eproc)
+    {
+        eprintf("Cannot find EPROCESS\n");
+        return false;
+    }
+    printf("EPROCESS 0x%lx\n", eproc);
+    addr_t ethread = find_ethread(rio_vmi->vmi, eproc);
+    if (!ethread)
+    {
+        eprintf("Cannot find ETHREAD\n");
+        return false;
+    }
+    printf("ETHREAD 0x%lx\n", ethread);
+    addr_t w32_start_addr;
+    status = vmi_read_addr_va(rio_vmi->vmi, ethread + ETH_THREAD_HEAD_OFF, 0, &w32_start_addr);
+    if (status == VMI_FAILURE)
+    {
+        eprintf("Cannot read Win32StartAddress\n");
+        return false;
+    }
+    printf("Win32StartAddress 0x%lx\n", w32_start_addr);
+
+    // continue
+    continue_until(rio_vmi, w32_start_addr, false);
 
     return true;
 }
