@@ -7,7 +7,7 @@
 
 // hardcoded, waiting for new libvmi rekall API
 #define EPROC_THREAD_HEAD_OFF   0x308
-#define W32_START_OFF           0x418
+#define ETH_W32_START_OFF       0x418
 #define ETH_THREAD_HEAD_OFF     0x428
 
 static bool interrupted = false;
@@ -144,6 +144,7 @@ static event_response_t cb_on_sstep(vmi_instance_t vmi, vmi_event_t *event)
             return VMI_EVENT_RESPONSE_NONE;
         }
         // toggle singlestep OFF
+        printf("out of the targeted page\n");
         return VMI_EVENT_RESPONSE_TOGGLE_SINGLESTEP;
     }
 
@@ -435,7 +436,7 @@ bool attach_new_process(RDebug *dbg)
     }
     printf("ETHREAD 0x%lx\n", ethread);
     addr_t w32_start_addr;
-    status = vmi_read_addr_va(rio_vmi->vmi, ethread + ETH_THREAD_HEAD_OFF, 0, &w32_start_addr);
+    status = vmi_read_addr_va(rio_vmi->vmi, ethread + ETH_W32_START_OFF, 0, &w32_start_addr);
     if (status == VMI_FAILURE)
     {
         eprintf("Cannot read Win32StartAddress\n");
@@ -444,7 +445,7 @@ bool attach_new_process(RDebug *dbg)
     printf("Win32StartAddress 0x%lx\n", w32_start_addr);
 
     // continue
-    continue_until(rio_vmi, w32_start_addr, false);
+    // continue_until(rio_vmi, w32_start_addr, false);
 
     return true;
 }

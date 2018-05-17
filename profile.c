@@ -36,17 +36,29 @@ outerr:
     return 0;
 }
 
-bool static load_symbols_section(json_object *root, const char *section_name, addr_t kernel_base)
+bool static load_symbols_section(RIO *io, json_object *root,
+                                 const char *section_name, addr_t kernel_base)
 {
     json_object* section = NULL;
     if (!json_object_object_get_ex(root, section_name, &section))
         goto outerr;
 
     addr_t symbol_addr;
+    char cmd[2048];
     json_object_object_foreach(section, key, val) {
+        // skip symbols starting with str:
+        if (!strncmp(key, "str:", strlen("str:")))
+            continue;
+
+        // skip symbols containing an @
+        if (strchr(key, '@'))
+            continue;
+
         symbol_addr = kernel_base + json_object_get_int64(val);
         // printf("symbol: %s, addr: 0x%lx\n", key, symbol_addr);
-        // call rflag API
+        bzero(cmd, 2048);
+        snprintf(cmd, 2048, "f rekall.%s = 0x%lx\n", key, symbol_addr);
+        io->cb_printf(cmd);
     }
 
     return true;
@@ -55,7 +67,7 @@ outerr:
     return false;
 }
 
-bool load_symbols(vmi_instance_t vmi)
+bool load_symbols(RIO *io, vmi_instance_t vmi)
 {
     const char* profile_path = NULL;
     json_object* root = NULL;
@@ -79,10 +91,10 @@ bool load_symbols(vmi_instance_t vmi)
     if (!kernel_base)
         goto outerr;
 
-    if (!load_symbols_section(root, "$CONSTANTS", kernel_base))
+    if (!load_symbols_section(io, root, "$CONSTANTS", kernel_base))
         goto outerr;
 
-    if (!load_symbols_section(root, "$FUNCTIONS", kernel_base))
+    if (!load_symbols_section(io, root, "$FUNCTIONS", kernel_base))
         goto outerr;
 
     if (root)

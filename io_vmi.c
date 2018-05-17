@@ -55,7 +55,6 @@ static RIODesc *__open(RIO *io, const char *pathname, int flags, int mode) {
     long pid = 0;
     char *uri_content = NULL;
     char *saveptr = NULL;
-    bool success = false;
 
     if (!__plugin_open(io, pathname, 0))
         return ret;
@@ -112,13 +111,6 @@ static RIODesc *__open(RIO *io, const char *pathname, int flags, int mode) {
     if (status == VMI_FAILURE)
     {
         eprintf("vmi_init_complete: Failed to initialize LibVMI, error: %d\n", error);
-        goto out;
-    }
-
-    success = load_symbols(rio_vmi->vmi);
-    if (!success)
-    {
-        eprintf("Cannot load symbols from Rekall profile\n");
         goto out;
     }
 
@@ -235,8 +227,21 @@ static int __gettid(RIODesc *fd) {
 }
 
 static char *__system(RIO *io, RIODesc *fd, const char *command) {
+    RIOVmi *rio_vmi = NULL;
     printf("%s command: %s\n", __func__, command);
     // io->cb_printf()
+
+    printf("%s\n", __func__);
+    if (!fd || !fd->data)
+        return NULL;
+
+    rio_vmi = fd->data;
+
+    if (!strncmp(command, "symbols", strlen("symbols")))
+    {
+        if (!load_symbols(io, rio_vmi->vmi))
+            eprintf("Cannot load symbols from Rekall profile\n");
+    }
     return NULL;
 }
 

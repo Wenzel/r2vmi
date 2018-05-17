@@ -84,7 +84,6 @@ static event_response_t cb_on_cr3_load(vmi_instance_t vmi, vmi_event_t *event){
     status_t status;
     pid_t pid = 0;
     char* proc_name = NULL;
-    bool found = false;
 
     printf("%s\n", __func__);
 
