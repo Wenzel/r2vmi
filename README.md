@@ -10,12 +10,15 @@ leveraging _Virtual Machine Introspection_.
 Based on `Libvmi` to access the VM memory and listen on hardware events.
 
 What works:
-- Intercept a process by PID/Name
+- Intercept a process by name/PID
 - Read the registers
 - Single-step the process execution
-- Memory breakpoints
+- Set breakpoints
+- Load Rekall symbols
 
-Demo: https://asciinema.org/a/Vm2eXMSOS8faegNQGlH4C9J0u
+# Demo
+
+![R2VMI_DEMO](https://github.com/Wenzel/wenzel.github.io/raw/master/public/images/r2vmi_demo.gif)
 
 # Requirements
 
@@ -35,9 +38,9 @@ Note: if `pkgconfig` fails, you need to:
 
 # Usage
 
-You need a virtual machine configured on top of `Xen`, and a process name to intercept
+You need a virtual machine configured on top of `Xen`, and a process name/pid to intercept
 
-    $ r2 vmi://<vm_name>:<pid>
+    $ r2 vmi://<vm_name>:<name/pid>
 
 Example:
 
