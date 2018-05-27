@@ -307,6 +307,14 @@ static bool continue_until(RIOVmi *rio_vmi, addr_t addr, bool kernel_translate)
         }
     }
 
+    // clear event buffer if any
+    status = vmi_events_listen(rio_vmi->vmi, 0);
+    if (status == VMI_FAILURE)
+    {
+        eprintf("fail to clear event buffer\n");
+        return false;
+    }
+
     // clear mem_event
     status = vmi_clear_event(rio_vmi->vmi, &mem_event, NULL);
     if (status == VMI_FAILURE)

@@ -329,6 +329,14 @@ static int __attach(RDebug *dbg, int pid) {
         return 1;
     }
 
+    // clear event buffer if any
+    status = vmi_events_listen(rio_vmi->vmi, 0);
+    if (status == VMI_FAILURE)
+    {
+        eprintf("Fail to clear event buffer\n");
+        return 1;
+    }
+
     // set attached to allow reg_read
     rio_vmi->attached = true;
 
@@ -380,6 +388,14 @@ static RDebugReasonType __wait(RDebug *dbg, int pid) {
             eprintf("Fail to listen to events\n");
             return false;
         }
+    }
+
+    // clear event buffer if any
+    status = vmi_events_listen(rio_vmi->vmi, 0);
+    if (status == VMI_FAILURE)
+    {
+        eprintf("fail to clear event buffer\n");
+        return false;
     }
 
     // clear event if singlestep
