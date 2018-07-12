@@ -5,10 +5,13 @@
 
 #define LINEAR48(x)    ((x) &= 0xffffffffffff)
 
-// hardcoded, waiting for new libvmi rekall API
-#define EPROC_THREAD_HEAD_OFF   0x308
-#define ETH_W32_START_OFF       0x418
-#define ETH_THREAD_HEAD_OFF     0x428
+// hardcoded winxp, waiting for new libvmi rekall API
+// _EPROCESS.ThreadListHead
+#define EPROC_THREAD_HEAD_OFF   0x190
+// _ETHREAD.Win32StartAddress
+#define ETH_W32_START_OFF       0x228
+// _Ethread.ThreadListEntry
+#define ETH_THREAD_HEAD_OFF     0x22c
 
 static bool interrupted = false;
 
@@ -47,8 +50,12 @@ bool vaddr_equal(vmi_instance_t vmi, addr_t vaddr1, addr_t vaddr2)
         if (LINEAR48(vaddr1) == LINEAR48(vaddr2))
             return true;
         break;
+    case VMI_PM_PAE:
+        if (vaddr1 == vaddr2)
+            return true;
+        break;
     default:
-        eprintf("Unhandled page mode");
+        eprintf("Unhandled page mode\n");
         break;
     }
     return false;
@@ -113,7 +120,56 @@ char* dtb_to_pname(vmi_instance_t vmi, addr_t dtb) {
         // read new flink
         vmi_read_addr_va(vmi, flink, 0, &flink);
     }
+    // idle process ?
+    status = vmi_read_addr_ksym(vmi, "PsIdleProcess", &start_proc);
+    if (VMI_FAILURE == status)
+    {
+        return NULL;
+    }
+    status = vmi_read_addr_va(vmi, start_proc + pdb_offset, 0, &value);
+    if (VMI_FAILURE == status)
+    {
+        printf("fail to read CR3\n");
+        return NULL;
+    }
+    if (value == dtb)
+    {
+        return vmi_read_str_va(vmi, start_proc + name_offset, 0);
+    }
+
     return NULL;
+}
+
+status_t vmi_dtb_to_pid_extended_idle(vmi_instance_t vmi, addr_t dtb, vmi_pid_t *pid)
+{
+    status_t status;
+    addr_t start_proc;
+    addr_t pid_offset;
+
+
+    status = vmi_dtb_to_pid(vmi, dtb, pid);
+    if (VMI_FAILURE == status)
+    {
+        // Idle process ?
+        status = vmi_read_addr_ksym(vmi, "PsIdleProcess", &start_proc);
+        if (VMI_FAILURE == status)
+        {
+            return VMI_FAILURE;
+        }
+        status = vmi_get_offset(vmi, "win_pid", &pid_offset);
+        if (VMI_FAILURE == status)
+        {
+            printf("fail to get offset\n");
+            return VMI_FAILURE;
+        }
+        status = vmi_read_32_va(vmi, start_proc + pid_offset, 0, (uint32_t*)pid);
+        if (VMI_FAILURE == status)
+        {
+            printf("fail to read pid");
+            return VMI_FAILURE;
+        }
+    }
+    return VMI_SUCCESS;
 }
 
 static event_response_t cb_on_sstep(vmi_instance_t vmi, vmi_event_t *event)
@@ -224,7 +280,7 @@ static event_response_t cb_on_continue_until_event(vmi_instance_t vmi, vmi_event
 
         interrupted = true;
     }
-    return VMI_EVENT_RESPONSE_NONE;
+    return VMI_EVENT_RESPONSE_EMULATE;
 }
 
 static bool continue_until(RIOVmi *rio_vmi, addr_t addr, bool kernel_translate)
@@ -298,7 +354,8 @@ static bool continue_until(RIOVmi *rio_vmi, addr_t addr, bool kernel_translate)
     interrupted = false;
     while (!interrupted)
     {
-        printf("Listening on VMI events...\n");
+        int nb_events = vmi_are_events_pending(rio_vmi->vmi);
+        printf("Listening on VMI events...%d events pending\n", nb_events);
         status = vmi_events_listen(rio_vmi->vmi, 1000);
         if (status == VMI_FAILURE)
         {
@@ -408,6 +465,46 @@ static addr_t find_ethread(vmi_instance_t vmi, addr_t eproc)
     return ethread;
 }
 
+static bool is_userland(uint64_t rflag)
+{
+    // extract the IOPL field
+    int iopl = rflag & ((1 << 13) | (1 << 12));
+    printf("iopl: %d\n", iopl);
+    return (iopl == 3) ? true : false;
+}
+
+static event_response_t cb_on_sstep_until_userland(vmi_instance_t vmi, vmi_event_t *event)
+{
+    uint64_t rflag;
+
+    printf("%s\n", __func__);
+
+    if(!event || event->type != VMI_EVENT_SINGLESTEP) {
+        eprintf("ERROR (%s): invalid event encounted\n", __func__);
+        return 0;
+    }
+
+    // check for mem event
+    addr_t paddr = 0;
+    vmi_translate_kv2p(vmi, event->x86_regs->rip, &paddr);
+    addr_t gfn = paddr >> 12;
+    printf("Checking for mem event on page: 0x%" PRIx64 "\n", gfn);
+    vmi_event_t *mem_event = vmi_get_mem_event(vmi, gfn, VMI_MEMACCESS_X);
+    if (mem_event != NULL)
+    {
+        printf("Mem event found !\n");
+    }
+
+    rflag = event->x86_regs->rflags;
+    printf("rflag: 0x%" PRIx64 ", rip: 0x%" PRIx64 "\n", rflag, event->x86_regs->rip);
+    if (is_userland(rflag))
+    {
+        vmi_pause_vm(vmi);
+        interrupted = true;
+    }
+    return VMI_EVENT_RESPONSE_NONE;
+}
+
 bool attach_new_process(RDebug *dbg)
 {
     RIODesc *desc = NULL;
@@ -421,11 +518,17 @@ bool attach_new_process(RDebug *dbg)
     rio_vmi = desc->data;
 
     status = vmi_translate_ksym2v(rio_vmi->vmi, "KiStartUserThread", &start_thread_addr);
-    if (status == VMI_FAILURE)
+    if (VMI_FAILURE == status)
     {
-        eprintf("Unable to get symbol\n");
-        return false;
+        // winxp ? KiStartThread
+        status = vmi_translate_ksym2v(rio_vmi->vmi, "KiThreadStartup", &start_thread_addr);
+        if (VMI_FAILURE == status)
+        {
+            eprintf("Fail to get KiStartUserThread | KiThreadStartup symbol\n");
+            return false;
+        }
     }
+
     printf("KiStartUserThread: 0x%lx\n", start_thread_addr);
     continue_until(rio_vmi, start_thread_addr, true);
 
@@ -452,6 +555,94 @@ bool attach_new_process(RDebug *dbg)
     }
     printf("Win32StartAddress 0x%lx\n", w32_start_addr);
 
+    printf("mode: %d\n", VMI_PM_IA32E);
+
+    // singlestep until userland
+    vmi_event_t sstep_event;
+    sstep_event.version = VMI_EVENTS_VERSION;
+    sstep_event.type = VMI_EVENT_SINGLESTEP;
+    sstep_event.callback = cb_on_sstep_until_userland;
+    sstep_event.ss_event.enable = 1;
+    SET_VCPU_SINGLESTEP(sstep_event.ss_event, rio_vmi->current_vcpu);
+
+    // register
+    status = vmi_register_event(rio_vmi->vmi, &sstep_event);
+    if (status == VMI_FAILURE)
+    {
+        eprintf("Fail to register event\n");
+        return false;
+    }
+
+    // resume
+    status = vmi_resume_vm(rio_vmi->vmi);
+    if (status == VMI_FAILURE)
+    {
+        eprintf("Fail to resume vm\n");
+        return false;
+    }
+
+    interrupted = false;
+    while (!interrupted)
+    {
+        vmi_events_listen(rio_vmi->vmi, 1000);
+    }
+
+    // process rest of event queue
+    vmi_events_listen(rio_vmi->vmi, 0);
+
+    // clear
+    vmi_clear_event(rio_vmi->vmi, &sstep_event, NULL);
+
+//    page_info_t pinfo;
+//    status = vmi_pagetable_lookup_extended(rio_vmi->vmi, rio_vmi->pid_cr3, w32_start_addr, &pinfo);
+//    if (status == VMI_FAILURE)
+//    {
+//        eprintf("Win32StartAddress is not mapped\n");
+//        return false;
+//    }
+
+
+//    addr_t ntcontinue_addr;
+//    status = vmi_translate_ksym2v(rio_vmi->vmi, "NtContinue", &ntcontinue_addr);
+//    if (status == VMI_FAILURE)
+//    {
+//        eprintf("fail to translate symbol\n");
+//        return false;
+//    }
+
+//    continue_until(rio_vmi, ntcontinue_addr, true);
+
+//    addr_t win32startaddress_paddr;
+//    status = vmi_pagetable_lookup(rio_vmi->vmi, rio_vmi->pid_cr3, w32_start_addr, &win32startaddress_paddr);
+//    if (status == VMI_SUCCESS)
+//    {
+//        printf("Win32StartAddress is mapped\n");
+//    }
+
+
+//    bool win32startaddress_mapped = false;
+//    while (!win32startaddress_mapped)
+//    {
+//        printf("continue until MmAccessFault\n");
+//        addr_t mmaccessfault_vaddr;
+//        // set breakpoint on MmAccessFault
+//        status = vmi_translate_ksym2v(rio_vmi->vmi, "MmAccessFault", &mmaccessfault_vaddr);
+//        if (status == VMI_FAILURE)
+//        {
+//            eprintf("fail to translate symbol\n");
+//            return false;
+//        }
+//        continue_until(rio_vmi, mmaccessfault_vaddr, true);
+//        // test if win32startaddress is mapped
+//        addr_t win32startaddress_paddr;
+//        status = vmi_pagetable_lookup(rio_vmi->vmi, rio_vmi->pid_cr3, w32_start_addr, &win32startaddress_paddr);
+//        if (status == VMI_SUCCESS)
+//        {
+//            printf("Win32StartAddress is mapped\n");
+//            win32startaddress_mapped = true;
+//        }
+//    }
+
     // continue
     // continue_until(rio_vmi, w32_start_addr, false);
 
@@ -463,7 +654,7 @@ bool is_target_process(RIOVmi *rio_vmi, const char *proc_name, uint64_t dtb)
     int pid;
     status_t status;
 
-    status = vmi_dtb_to_pid(rio_vmi->vmi, dtb, &pid);
+    status = vmi_dtb_to_pid_extended_idle(rio_vmi->vmi, dtb, &pid);
     if (status == VMI_FAILURE)
     {
         eprintf("Fail to get pid\n");
