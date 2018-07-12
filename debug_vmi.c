@@ -117,7 +117,7 @@ static event_response_t cb_on_cr3_load(vmi_instance_t vmi, vmi_event_t *event){
         return 0;
     }
 
-    status = vmi_dtb_to_pid(vmi, (addr_t) event->reg_event.value, &pid);
+    status = vmi_dtb_to_pid_extended_idle(vmi, (addr_t) event->reg_event.value, &pid);
     if (status == VMI_FAILURE)
     {
         eprintf("ERROR (%s): fail to retrieve pid from cr3\n", __func__);
@@ -380,7 +380,7 @@ static RDebugReasonType __wait(RDebug *dbg, __attribute__((unused)) int pid) {
 
     interrupted = false;
     while (!interrupted) {
-        eprintf("%s: Listen to VMI events\n", __func__);
+        eprintf("%s: Listen to VMI events...\n", __func__);
         status = vmi_events_listen(rio_vmi->vmi, 1000);
         if (status == VMI_FAILURE)
         {
