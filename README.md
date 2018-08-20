@@ -14,7 +14,7 @@ What works:
 - Read the registers
 - Single-step the process execution
 - Set memory breakpoints (_The page must be mapped_)
-- Load Rekall symbols
+- Load Kernel symbols
 
 # Demo
 
