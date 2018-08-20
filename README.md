@@ -13,7 +13,7 @@ What works:
 - Intercept a process by name/PID
 - Read the registers
 - Single-step the process execution
-- Set breakpoints
+- Set memory breakpoints (_The page must be mapped_)
 - Load Rekall symbols
 
 # Demo
@@ -23,26 +23,21 @@ What works:
 # Requirements
 
 - `Xen 4.6`
-- [`libvmi`](http://libvmi.com/)
-- `radare2`
 - `pkg-config`
+- [`libvmi`](http://libvmi.com/)
+- [`radare2`](https://github.com/radare/radare2)
 
 # Setup
 
-    $ make
-    $ make install
-
-Note: if `pkgconfig` fails, you need to:
-
-    export PKG_CONFIG_PATH=/usr/lib/pkgconfig
+An complete installation guide is available on the [Wiki](https://github.com/Wenzel/r2vmi/wiki/Project-Setup)
 
 # Usage
 
 You need a virtual machine configured on top of `Xen`, and a process name/pid to intercept
 
-    $ r2 vmi://<vm_name>:<name/pid>
+    $ r2 -d vmi://<vm_name>:<name/pid>
 
 Example:
 
-    $ r2 vmi://win7:firefox
+    $ r2 -d vmi://win7:firefox
 
