@@ -34,14 +34,14 @@ static event_response_t cb_on_mem_event(vmi_instance_t vmi, vmi_event_t *event){
     // at the right rip ?
     if (!vaddr_equal(vmi, event->x86_regs->rip, event_data->bp_vaddr))
     {
-        eprintf("mem_event: wrong rip: %"PRIx64" (bp_vaddr: %"PRIx64")\n", event->x86_regs->rip, event_data->bp_vaddr);
+        eprintf("%s: wrong rip: %"PRIx64" (bp_vaddr: %"PRIx64")\n", __func__, event->x86_regs->rip, event_data->bp_vaddr);
         return VMI_EVENT_RESPONSE_EMULATE;
     }
 
     // our pid ?
     if (event->x86_regs->cr3 != event_data->pid_cr3)
     {
-        eprintf("mem_event: wrong cr3 (%s)\n", pname);
+        eprintf("%s: wrong cr3 (%s)\n", __func__, pname);
         return VMI_EVENT_RESPONSE_EMULATE;
     }
 
@@ -51,7 +51,7 @@ static event_response_t cb_on_mem_event(vmi_instance_t vmi, vmi_event_t *event){
     // pause VM
     status = vmi_pause_vm(vmi);
     if (VMI_FAILURE == status)
-        eprintf("Fail to pause vm\n");
+        eprintf("%s: Fail to pause vm\n", __func__);
 
     // stop listen
     interrupted = true;
@@ -74,7 +74,7 @@ static event_response_t cb_on_sstep(vmi_instance_t vmi, vmi_event_t *event) {
     // pause the VM before exiting the callback
     status = vmi_pause_vm(vmi);
     if (status == VMI_FAILURE)
-        eprintf("Fail to pause VM\n");
+        eprintf("%s: Fail to pause VM\n", __func__);
 
     return 0;
 }
@@ -106,7 +106,7 @@ static event_response_t cb_on_cr3_load(vmi_instance_t vmi, vmi_event_t *event){
         status = vmi_pause_vm(vmi);
         if (status == VMI_FAILURE)
         {
-            eprintf("Fail to pause VM\n");
+            eprintf("%s: Fail to pause VM\n", __func__);
             return 0;
         }
         // if we can't find the process in the list
@@ -141,7 +141,7 @@ static event_response_t cb_on_cr3_load(vmi_instance_t vmi, vmi_event_t *event){
         status = vmi_pause_vm(vmi);
         if (status == VMI_FAILURE)
         {
-            eprintf("Fail to pause VM\n");
+            eprintf("%s: Fail to pause VM\n", __func__);
             return 0;
         }
         // set current VCPU
@@ -170,7 +170,7 @@ static void unregister_breakpoint(gpointer key, gpointer value, gpointer user_da
     status = vmi_clear_event(rio_vmi->vmi, event, NULL);
     if (VMI_FAILURE == status)
     {
-        eprintf("Fail to clear breakpoint %"PRIx64"\n", bp_vaddr);
+        eprintf("%s: Fail to clear breakpoint %"PRIx64"\n", __func__, bp_vaddr);
     }
 }
 
@@ -184,7 +184,7 @@ static void register_breakpoint(gpointer key, gpointer value, gpointer user_data
     status = vmi_register_event(rio_vmi->vmi, event);
     if (VMI_FAILURE == status)
     {
-        eprintf("Fail to register breakpoint %"PRIx64"\n", bp_vaddr);
+        eprintf("%s: Fail to register breakpoint %"PRIx64"\n", __func__, bp_vaddr);
     }
 }
 
@@ -221,14 +221,14 @@ static int __step(RDebug *dbg) {
     status = vmi_register_event(rio_vmi->vmi, rio_vmi->sstep_event);
     if (status == VMI_FAILURE)
     {
-        eprintf("Failed to register event\n");
+        eprintf("%s: Failed to register event\n", __func__);
         return false;
     }
 
     status = vmi_resume_vm(rio_vmi->vmi);
     if (status == VMI_FAILURE)
     {
-        eprintf("Failed to resume VM execution\n");
+        eprintf("%s: Failed to resume VM execution\n", __func__);
         return 1;
     }
 
@@ -255,7 +255,7 @@ static int __continue(RDebug *dbg, int pid, int tid, int sig) {
     status = vmi_resume_vm(rio_vmi->vmi);
     if (VMI_FAILURE == status)
     {
-        eprintf("Failed to resume VM execution\n");
+        eprintf("%s: Failed to resume VM execution\n", __func__);
         return 1;
     }
 
@@ -284,7 +284,7 @@ static int __attach(RDebug *dbg, int pid) {
     status = vmi_pause_vm(rio_vmi->vmi);
     if (status == VMI_FAILURE)
     {
-        eprintf("Fail to pause VM\n");
+        eprintf("%s: Fail to pause VM\n", __func__);
         return 1;
     }
 
@@ -297,7 +297,7 @@ static int __attach(RDebug *dbg, int pid) {
     status = vmi_register_event(rio_vmi->vmi, &cr3_load_event);
     if (status == VMI_FAILURE)
     {
-        eprintf("vmi event registration failure\n");
+        eprintf("%s: vmi event registration failure\n", __func__);
         vmi_resume_vm(rio_vmi->vmi);
         return 1;
     }
@@ -305,7 +305,7 @@ static int __attach(RDebug *dbg, int pid) {
     status = vmi_resume_vm(rio_vmi->vmi);
     if (status == VMI_FAILURE)
     {
-        eprintf("Fail to resume VM\n");
+        eprintf("%s: Fail to resume VM\n", __func__);
         return 1;
     }
 
@@ -325,7 +325,7 @@ static int __attach(RDebug *dbg, int pid) {
     status = vmi_clear_event(rio_vmi->vmi, &cr3_load_event, NULL);
     if (status == VMI_FAILURE)
     {
-        eprintf("Fail to clear event\n");
+        eprintf("%s Fail to clear event\n", __func__);
         return 1;
     }
 
@@ -333,7 +333,7 @@ static int __attach(RDebug *dbg, int pid) {
     status = vmi_events_listen(rio_vmi->vmi, 0);
     if (status == VMI_FAILURE)
     {
-        eprintf("Fail to clear event buffer\n");
+        eprintf("%s: Fail to clear event buffer\n", __func__);
         return 1;
     }
 
@@ -385,7 +385,7 @@ static RDebugReasonType __wait(RDebug *dbg, int pid) {
         status = vmi_events_listen(rio_vmi->vmi, 1000);
         if (status == VMI_FAILURE)
         {
-            eprintf("Fail to listen to events\n");
+            eprintf("%s: Fail to listen to events\n", __func__);
             return false;
         }
     }
@@ -394,7 +394,7 @@ static RDebugReasonType __wait(RDebug *dbg, int pid) {
     status = vmi_events_listen(rio_vmi->vmi, 0);
     if (status == VMI_FAILURE)
     {
-        eprintf("fail to clear event buffer\n");
+        eprintf("%s: fail to clear event buffer\n", __func__);
         return false;
     }
 
@@ -406,7 +406,7 @@ static RDebugReasonType __wait(RDebug *dbg, int pid) {
         status = vmi_clear_event(rio_vmi->vmi, rio_vmi->sstep_event, NULL);
         if (VMI_FAILURE == status)
         {
-            eprintf("Fail to clear event\n");
+            eprintf("%s: Fail to clear event\n", __func__);
             return false;
         }
         free(rio_vmi->sstep_event);
@@ -633,7 +633,7 @@ static int __breakpoint (void *bp, RBreakpointItem *b, bool set) {
             status = vmi_clear_event(rio_vmi->vmi, bp_event, NULL);
             if (VMI_FAILURE == status)
             {
-                eprintf("Fail to clear event\n");
+                eprintf("%s: Fail to clear event\n", __func__);
                 return false;
             }
             if (bp_event->data)
