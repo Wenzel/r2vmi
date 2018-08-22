@@ -161,7 +161,7 @@ static int __read(RIO *io, RIODesc *fd, ut8 *buf, int len) {
     size_t bytes_read = 0;
     access_context_t ctx;
 
-    printf("%s, offset: %llx\n", __func__, io->off);
+    eprintf("%s, offset: %llx\n", __func__, io->off);
 
     if (!fd || !fd->data)
         return -1;
@@ -228,10 +228,9 @@ static int __gettid(RIODesc *fd) {
 
 static char *__system(RIO *io, RIODesc *fd, const char *command) {
     RIOVmi *rio_vmi = NULL;
-    printf("%s command: %s\n", __func__, command);
+    eprintf("%s: command: %s\n", __func__, command);
     // io->cb_printf()
 
-    printf("%s\n", __func__);
     if (!fd || !fd->data)
         return NULL;
 

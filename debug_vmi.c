@@ -19,7 +19,7 @@ static event_response_t cb_on_mem_event(vmi_instance_t vmi, vmi_event_t *event){
     bp_event_data *event_data;
     const char *pname = NULL;
 
-    printf("%s\n", __func__);
+    eprintf("%s\n", __func__);
 
     if(!event || event->type != VMI_EVENT_MEMORY || !event->data) {
         eprintf("ERROR (%s): invalid event encounted\n", __func__);
@@ -45,7 +45,7 @@ static event_response_t cb_on_mem_event(vmi_instance_t vmi, vmi_event_t *event){
         return VMI_EVENT_RESPONSE_EMULATE;
     }
 
-    printf("RIP: %"PRIx64 " (%s)\n", event->x86_regs->rip, pname);
+    eprintf("%s: RIP: %"PRIx64 " (%s)\n", __func__, event->x86_regs->rip, pname);
     print_event(event);
 
     // pause VM
@@ -242,7 +242,7 @@ static int __continue(RDebug *dbg, int pid, int tid, int sig) {
     RIOVmi *rio_vmi = NULL;
     status_t status;
 
-    printf("%s, sig: %d\n", __func__, sig);
+    eprintf("%s, sig: %d\n", __func__, sig);
 
     desc = dbg->iob.io->desc;
     rio_vmi = desc->data;
@@ -369,7 +369,7 @@ static RDebugReasonType __wait(RDebug *dbg, int pid) {
     RIODesc *desc = NULL;
     RIOVmi *rio_vmi = NULL;
     status_t status;
-    printf("%s\n", __func__);
+    eprintf("%s\n", __func__);
 
     desc = dbg->iob.io->desc;
     rio_vmi = desc->data;
@@ -381,7 +381,7 @@ static RDebugReasonType __wait(RDebug *dbg, int pid) {
 
     interrupted = false;
     while (!interrupted) {
-        printf("Listen to VMI events\n");
+        eprintf("%s: Listen to VMI events\n", __func__);
         status = vmi_events_listen(rio_vmi->vmi, 1000);
         if (status == VMI_FAILURE)
         {
@@ -410,6 +410,7 @@ static RDebugReasonType __wait(RDebug *dbg, int pid) {
             return false;
         }
         free(rio_vmi->sstep_event);
+        rio_vmi->sstep_event = NULL;
         // re-register all breakpoint events that we previously unregistered
         g_hash_table_foreach(rio_vmi->bp_events_table, register_breakpoint, (gpointer) rio_vmi);
     }
@@ -429,7 +430,7 @@ static RList *__map_get(RDebug* dbg) {
     page_mode_t page_mode;
     char unknown[] = "unknown_";
 
-    printf("%s\n", __func__);
+    eprintf("%s\n", __func__);
 
     desc = dbg->iob.io->desc;
     rio_vmi = desc->data;
@@ -528,7 +529,7 @@ static int __breakpoint (void *bp, RBreakpointItem *b, bool set) {
     addr_t bp_vaddr = b->addr;
     gboolean ret;
     vmi_event_t *bp_event = NULL;
-    printf("%s, set: %d, addr: %"PRIx64", hw: %d\n", __func__, set, bp_vaddr, b->hw);
+    eprintf("%s, set: %d, addr: %"PRIx64", hw: %d\n", __func__, set, bp_vaddr, b->hw);
 
     if (!bp)
         return false;
@@ -562,13 +563,13 @@ static int __breakpoint (void *bp, RBreakpointItem *b, bool set) {
 
                 // get guest frame number
                 addr_t gfn = paddr >> 12;
-                printf("paddr: %016"PRIx64", gfn: %"PRIx64"\n", paddr, gfn);
+                eprintf("%s: paddr: %016"PRIx64", gfn: %"PRIx64"\n", __func__, paddr, gfn);
 
                 // prepare new vmi_event
                 bp_event = calloc(1, sizeof(vmi_event_t));
                 if (!bp_event)
                 {
-                    eprintf("Fail to allocate memory\n");
+                    eprintf("%s: Fail to allocate memory\n", __func__);
                     return false;
                 }
                 SETUP_MEM_EVENT(bp_event, gfn, VMI_MEMACCESS_X, cb_on_mem_event, 0);
@@ -580,7 +581,7 @@ static int __breakpoint (void *bp, RBreakpointItem *b, bool set) {
                 bool result = rbreak->iob.write_at(rbreak->iob.io, b->addr, &int3, sizeof(int3));
                 if (!result)
                 {
-                    eprintf("Fail to write software breakpoint\n");
+                    eprintf("%s: Fail to write software breakpoint\n", __func__);
                     return false;
                 }
 
@@ -588,7 +589,7 @@ static int __breakpoint (void *bp, RBreakpointItem *b, bool set) {
                 bp_event = calloc(1, sizeof(vmi_event_t));
                 if (!bp_event)
                 {
-                    eprintf("Fail to allocate memory\n");
+                    eprintf("%s: Fail to allocate memory\n", __func__);
                     return false;
                 }
                 SETUP_INTERRUPT_EVENT(bp_event, 0, cb_on_int3);
@@ -597,7 +598,7 @@ static int __breakpoint (void *bp, RBreakpointItem *b, bool set) {
             bp_event_data *event_data = calloc(1, sizeof(bp_event_data));
             if (!event_data)
             {
-                eprintf("Fail to allocate memory\n");
+                eprintf("%s: Fail to allocate memory\n", __func__);
                 return false;
             }
             event_data->pid_cr3 = rio_vmi->pid_cr3;
@@ -609,17 +610,16 @@ static int __breakpoint (void *bp, RBreakpointItem *b, bool set) {
             ret = g_hash_table_insert(rio_vmi->bp_events_table, GINT_TO_POINTER(bp_vaddr), bp_event);
             if (FALSE == ret)
             {
-                eprintf("Fail to insert event into ghashtable\n");
+                eprintf("%s: Fail to insert event into ghashtable\n", __func__);
                 return 1;
             }
-            printf("after insert\n");
 
             // register breakpoint event
             // either interrupt or mem event
             status = vmi_register_event(rio_vmi->vmi, bp_event);
             if (VMI_FAILURE == status)
             {
-                eprintf("Fail to register event\n");
+                eprintf("%s: Fail to register event\n", __func__);
                 return 1;
             }
         }
@@ -644,7 +644,7 @@ static int __breakpoint (void *bp, RBreakpointItem *b, bool set) {
             ret = g_hash_table_remove(rio_vmi->bp_events_table, GINT_TO_POINTER(bp_vaddr));
             if (FALSE == ret)
             {
-                eprintf("Fail to remove key from breakpoint table\n");
+                eprintf("%s: Fail to remove key from breakpoint table\n", __func__);
                 return false;
             }
 
@@ -655,7 +655,7 @@ static int __breakpoint (void *bp, RBreakpointItem *b, bool set) {
         }
         else
         {
-            eprintf("Fail to find breakpoint in table\n");
+            eprintf("%s: Fail to find breakpoint in table\n", __func__);
             return false;
         }
     }
@@ -665,7 +665,7 @@ static int __breakpoint (void *bp, RBreakpointItem *b, bool set) {
 
 // "drp" register profile
 static const char *__reg_profile(RDebug *dbg) {
-    printf("%s\n", __func__);
+    eprintf("%s\n", __func__);
     int arch = r_sys_arch_id (dbg->arch);
     int bits = dbg->anal->bits;
 
@@ -715,19 +715,19 @@ static bool __kill(RDebug *dbg, int pid, int tid, int sig) {
 }
 
 static int __select(int pid, int tid) {
-    printf("%s\n", __func__);
+    eprintf("%s\n", __func__);
 
     return 1;
 }
 
 static RDebugInfo* __info(RDebug *dbg, const char *arg) {
-    printf("%s\n", __func__);
+    eprintf("%s\n", __func__);
 
     return NULL;
 }
 
 static RList* __frames(RDebug *dbg, ut64 at) {
-    printf("%s\n", __func__);
+    eprintf("%s\n", __func__);
 
     return NULL;
 }
@@ -741,7 +741,7 @@ static int __reg_read(RDebug *dbg, int type, ut8 *buf, int size) {
     uint64_t cr3 = 0;
     registers_t regs;
 
-    printf("%s, type: %d, size:%d\n", __func__, type, size);
+    eprintf("%s, type: %d, size:%d\n", __func__, type, size);
 
     desc = dbg->iob.io->desc;
     rio_vmi = desc->data;
