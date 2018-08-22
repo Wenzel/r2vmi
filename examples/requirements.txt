@@ -1,0 +1,4 @@
+docopt
+ipython
+rekall
+r2pipe

@@ -74,7 +74,7 @@ def main(args):
     level = logging.INFO
     if debug:
         level = logging.DEBUG
-    logging.basicConfig(level=level)
+    logging.basicConfig(stream=sys.stdout, level=level)
 
     vm_name = args['<vm_name>']
     target = args['<target>']
@@ -99,13 +99,11 @@ def main(args):
     r2.cmd('db {}'.format(hex(syscall_addr)))
     r2.cmd('dc')
     while True:
-        # clean output
-        r2.cmd('dr')
         registers = r2.cmdj('drj')
         object_attributes_addr = registers['r8']
         object_name_addr = read_address(r2, win_types['object_name'], object_attributes_addr)
         buffer_addr = read_address(r2, win_types['buffer'], object_name_addr)
-        # read buffer
+        # read UNICODE_STRING buffer
         output = r2.cmd('psw @{}'.format(hex(buffer_addr)))
         logging.info('%s - @%s: %s', target, syscall_name, output)
         # single step
