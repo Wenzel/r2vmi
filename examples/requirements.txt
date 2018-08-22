@@ -1,3 +1,4 @@
 docopt
 ipython
 r2pipe
+libvmi
