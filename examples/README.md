@@ -8,7 +8,7 @@ This directory contains examples of use cases for `r2vmi`, on top of `r2pipe` Py
     $ source venv/bin/activate
     (venv) $ pip install -r requirements.txt
 
-# Rekall
+## Rekall
 
 The examples are using the Rekall's `VMIAddressSpace` which is not available on the latest relase.
 
