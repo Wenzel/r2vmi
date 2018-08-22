@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+# Watch Windows syscalls and print their ObjectName parameter
+
 """
 watch_syscall.
 
@@ -7,60 +9,37 @@ Usage:
     watch_syscall.py [options] <vm_name> <target> <syscall>
 
 Options:
-    -d --debug                              Enable logging debug level
     -h --help                               Show this screen.
     --version                               Show version.
 """
 
+
 # stdlib
-import re
 import os
 import sys
 import logging
-import json
 import struct
-from io import StringIO
+import signal
 from pprint import pprint
 from pathlib import Path
+
+# local
+from utils import RekallVMI
 
 # 3rd
 import r2pipe
 from docopt import docopt
 from IPython import embed
-from rekall import plugins, session
 
-def get_types(session):
-    object_name = session.profile.get_obj_offset('_OBJECT_ATTRIBUTES', 'ObjectName')
-    buffer = session.profile.get_obj_offset('_UNICODE_STRING', 'Buffer')
-    return {
-        'object_name': {
-                'offset': object_name,
-                'size': 'P'
-            },
-        'buffer': {
-                'offset': buffer,
-                'size': 'P'
-            }
-    }
+interrupted = False
 
-def find_syscall(session, syscall_name):
-    strio = StringIO()
-    session.RunPlugin("ssdt", output=strio)
-    ssdt = json.loads(strio.getvalue())
-    for e in ssdt:
-        if isinstance(e, list) and e[0] == 'r':
-            if e[1]["divider"] is None:
-                address = e[1]["symbol"]["address"]
-                full_name = e[1]["symbol"]["symbol"]
-                m = re.match(r'^(?P<table>.+)!(?P<name>.+)$', full_name)
-                if m:
-                    name = m.group('name')
-                    if name == syscall_name:
-                        return address
-    raise RuntimeError('Cannot find {} in ssdt'.format(syscall_name))
+def sigint_handler(sig, frame):
+    print('Ctrl+C received, will quit at next breakpoint hit..')
+    global interrupted
+    interrupted = True
 
 
-def read_address(r2, win_field, from_addr):
+def read_field(r2, win_field, from_addr):
     format = win_field['size']
     offset = win_field['offset']
     size = struct.calcsize(format)
@@ -70,46 +49,44 @@ def read_address(r2, win_field, from_addr):
 
 
 def main(args):
-    debug = args['--debug']
     level = logging.INFO
-    if debug:
-        level = logging.DEBUG
     logging.basicConfig(stream=sys.stdout, level=level)
+    # catch SIGINT
+    signal.signal(signal.SIGINT, sigint_handler)
 
     vm_name = args['<vm_name>']
     target = args['<target>']
     syscall_name = args['<syscall>']
 
-    rekall_url = 'vmi://xen/{}'.format(vm_name)
-    s = session.Session(
-            filename=rekall_url,
-            autodetect=["rsds"],
-            autodetect_build_local='none',
-            format='data',
-            profile_path=[
-                "http://profiles.rekall-forensic.com"
-            ])
-    syscall_addr = find_syscall(s, syscall_name)
-    win_types = get_types(s)
+    # build rekall VMI session
+    rekall = RekallVMI(vm_name, 'xen')
+    # get syscall
+    *rest, syscall_addr = rekall.find_syscall(syscall_name)
+    # get some _OBJECT_ATTRIBUTES fields/subfields offsets & size
+    win_types = rekall.get_winobj_fields()
+
+    # init r2vmi
     r2_url = "vmi://{}:{}".format(vm_name,target)
     r2 = r2pipe.open(r2_url, ["-d"])
 
-    logging.info('Loading symbols')
-    logging.info('Adding breakpoint on %s', syscall_name)
+    logging.info('Setting breakpoint on %s @%s', syscall_name, hex(syscall_addr))
     r2.cmd('db {}'.format(hex(syscall_addr)))
-    r2.cmd('dc')
-    while True:
+    logging.info('Waiting for breakpoint...')
+
+    global interrupted
+    while not interrupted:
+        # continue
+        r2.cmd('dc')
         registers = r2.cmdj('drj')
+        # bp hit !
         object_attributes_addr = registers['r8']
-        object_name_addr = read_address(r2, win_types['object_name'], object_attributes_addr)
-        buffer_addr = read_address(r2, win_types['buffer'], object_name_addr)
+        object_name_addr = read_field(r2, win_types['object_name'], object_attributes_addr)
+        buffer_addr = read_field(r2, win_types['buffer'], object_name_addr)
         # read UNICODE_STRING buffer
         output = r2.cmd('psw @{}'.format(hex(buffer_addr)))
         logging.info('%s - @%s: %s', target, syscall_name, output)
-        # single step
+        # single step to avoid hitting same breakpoint
         r2.cmd('ds')
-        # continue
-        r2.cmd('dc')
 
 
 if __name__ == '__main__':
