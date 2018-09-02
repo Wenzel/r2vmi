@@ -67,7 +67,7 @@ def main(args):
 
     # init r2vmi
     r2_url = "vmi://{}:{}".format(vm_name,target)
-    r2 = r2pipe.open(r2_url, ["-d"])
+    r2 = r2pipe.open(r2_url, ["-d", "-2"])
 
     logging.info('Setting breakpoint on %s @%s', syscall_name, hex(syscall_addr))
     r2.cmd('db {}'.format(hex(syscall_addr)))

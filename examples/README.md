@@ -10,10 +10,9 @@ This directory contains examples of use cases for `r2vmi`, on top of `r2pipe` Py
 
 ## Rekall
 
-The examples are using the Rekall's `VMIAddressSpace` which is not available on the latest relase.
+The examples are using the Rekall's `VMIAddressSpace` which is not available in the latest release.
 
-You will have to install `Rekall` from master:
-
+You will have to install `Rekall` from the git repository `master` branch:
 
     (venv) pip install --upgrade setuptools pip wheel
     (venv) git clone https://github.com/google/rekall.git
@@ -26,7 +25,7 @@ You will have to install `Rekall` from master:
 
 ## watch_syscall.py
 
-    sudo ./venv/bin/python watch_syscall.py xenwin7 explorer NtOpenKey 2>/dev/null
+    sudo ./venv/bin/python watch_syscall.py xenwin7 explorer NtOpenKey
 
 Output:
 
@@ -47,6 +46,3 @@ Output:
     INFO:root:explorer - @NtOpenKey: Custom\explorer.exe
     INFO:root:explorer - @NtOpenKey: \Registry\MACHINE\Software\Microsoft\Windows\CurrentVersion\SideBySide
     INFO:root:explorer - @NtOpenKey: \Registry\User\S-1-5-21-1625813105-2267665344-3627068389-1000_Classes
-
-
-Note: redirect stderr to `/dev/null` otherwise you will be flooded with `r2vmi` debug messages.
