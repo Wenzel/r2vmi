@@ -25,7 +25,7 @@ What works:
 - `Xen 4.6`
 - `pkg-config`
 - [`libvmi`](http://libvmi.com/)
-- [`radare2`](https://github.com/radare/radare2) >= `2.9.0`
+- [`radare2`](https://github.com/radare/radare2)
 
 # Setup
 
