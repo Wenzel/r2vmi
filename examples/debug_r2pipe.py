@@ -38,8 +38,8 @@ def main(args):
     r2_url = "vmi://{}:{}".format(vm_name,target)
     r2 = r2pipe.open(r2_url, ["-d"])
     output = r2.cmd('pd 10')
-    logging.info("size of output: %s", len(output))
     logging.info(output)
+    logging.info("size of output: %s", len(output))
 
 
 

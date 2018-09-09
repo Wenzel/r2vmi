@@ -264,7 +264,7 @@ static int __continue(RDebug *dbg, int pid, int tid, int sig) {
 
 static int __attach(RDebug *dbg, int pid) {
     for (int i=1; i <= 1000; i++)
-        printf("Attaching to pid %d...\n", pid);
+        printf("Print line %d...\n", i);
 
     return 0;
 }
