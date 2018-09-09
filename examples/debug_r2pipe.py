@@ -26,7 +26,6 @@ from pathlib import Path
 # 3rd
 import r2pipe
 from docopt import docopt
-from IPython import embed
 
 def main(args):
     level = logging.INFO
