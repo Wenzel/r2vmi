@@ -105,15 +105,7 @@ static RIODesc *__open(RIO *io, const char *pathname, int flags, int mode) {
 
     // init libvmi
     printf("Initializing LibVMI\n");
-    vmi_init_error_t error;
-    status_t status = vmi_init_complete(&rio_vmi->vmi, rio_vmi->vm_name, VMI_INIT_DOMAINNAME | VMI_INIT_EVENTS, NULL,
-                                        VMI_CONFIG_GLOBAL_FILE_ENTRY, NULL, &error);
-    if (status == VMI_FAILURE)
-    {
-        eprintf("vmi_init_complete: Failed to initialize LibVMI, error: %d\n", error);
-        goto out;
-    }
-
+    rio_vmi->vmi = NULL;
     return r_io_desc_new (io, &r_io_plugin_vmi, pathname, flags | R_IO_WRITE, mode, rio_vmi);
 
 out:

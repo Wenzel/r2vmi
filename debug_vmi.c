@@ -263,92 +263,8 @@ static int __continue(RDebug *dbg, int pid, int tid, int sig) {
 }
 
 static int __attach(RDebug *dbg, int pid) {
-    RIODesc *desc = NULL;
-    RIOVmi *rio_vmi = NULL;
-    status_t status = 0;
-
-    printf("Attaching to pid %d...\n", pid);
-
-    desc = dbg->iob.io->desc;
-    rio_vmi = desc->data;
-    if (!rio_vmi)
-    {
-        eprintf("%s: Invalid RIOVmi\n", __func__);
-        return 1;
-    }
-
-
-    // hack to get rio_vmi in __breakpoint
-    g_rio_vmi = rio_vmi;
-
-    status = vmi_pause_vm(rio_vmi->vmi);
-    if (status == VMI_FAILURE)
-    {
-        eprintf("%s: Fail to pause VM\n", __func__);
-        return 1;
-    }
-
-    vmi_event_t cr3_load_event = {0};
-    SETUP_REG_EVENT(&cr3_load_event, CR3, VMI_REGACCESS_W, 0, cb_on_cr3_load);
-
-    // setting event data
-    cr3_load_event.data = (void*) rio_vmi;
-
-    status = vmi_register_event(rio_vmi->vmi, &cr3_load_event);
-    if (status == VMI_FAILURE)
-    {
-        eprintf("%s: vmi event registration failure\n", __func__);
-        vmi_resume_vm(rio_vmi->vmi);
-        return 1;
-    }
-
-    status = vmi_resume_vm(rio_vmi->vmi);
-    if (status == VMI_FAILURE)
-    {
-        eprintf("%s: Fail to resume VM\n", __func__);
-        return 1;
-    }
-
-
-    while (!interrupted)
-    {
-        printf("Listening on VMI events...\n");
-        status = vmi_events_listen(rio_vmi->vmi, 1000);
-        if (status == VMI_FAILURE)
-        {
-            interrupted = true;
-            return 1;
-        }
-    }
-
-    // unregister cr3 event
-    status = vmi_clear_event(rio_vmi->vmi, &cr3_load_event, NULL);
-    if (status == VMI_FAILURE)
-    {
-        eprintf("%s Fail to clear event\n", __func__);
-        return 1;
-    }
-
-    // clear event buffer if any
-    status = vmi_events_listen(rio_vmi->vmi, 0);
-    if (status == VMI_FAILURE)
-    {
-        eprintf("%s: Fail to clear event buffer\n", __func__);
-        return 1;
-    }
-
-    // set attached to allow reg_read
-    rio_vmi->attached = true;
-
-    // did we attached to a new process ?
-    if (rio_vmi->attach_new_process)
-    {
-        return attach_new_process(dbg);
-    }
-    else
-    {
-        eprintf("Attaching to existing process is not implemented\n");
-    }
+    for (int i=1; i <= 1000; i++)
+        printf("Attaching to pid %d...\n", pid);
 
     return 0;
 }
@@ -757,7 +673,7 @@ static int __reg_read(RDebug *dbg, int type, ut8 *buf, int size) {
     unsigned int nb_vcpus = vmi_get_num_vcpus(rio_vmi->vmi);
 
     bool found = false;
-    for (int vcpu = 0; vcpu < nb_vcpus; vcpu++)
+    for (unsigned int vcpu = 0; vcpu < nb_vcpus; vcpu++)
     {
         // get cr3
         // if we have just attached, we cannot rely on vcpu_reg() since the VCPU
