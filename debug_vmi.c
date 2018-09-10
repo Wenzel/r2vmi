@@ -154,8 +154,13 @@ static event_response_t cb_on_cr3_load(vmi_instance_t vmi, vmi_event_t *event){
     return 0;
 }
 
-static event_response_t cb_on_int3(vmi_instance_t vmi, vmi_event_t *event){
+static event_response_t cb_on_int3(__attribute__((unused)) vmi_instance_t vmi, vmi_event_t *event){
     printf("%s\n", __func__);
+
+    if(!event || event->type != VMI_EVENT_INTERRUPT || !event->data) {
+        eprintf("ERROR (%s): invalid event encounted\n", __func__);
+        return 0;
+    }
 
     return 0;
 }
@@ -237,7 +242,7 @@ static int __step(RDebug *dbg) {
 
 
 // "dc" continue execution
-static int __continue(RDebug *dbg, int pid, int tid, int sig) {
+static int __continue(RDebug *dbg, __attribute__((unused)) int pid, __attribute__((unused)) int tid, __attribute__((unused)) int sig) {
     RIODesc *desc = NULL;
     RIOVmi *rio_vmi = NULL;
     status_t status;
@@ -353,19 +358,19 @@ static int __attach(RDebug *dbg, int pid) {
     return 0;
 }
 
-static int __detach(RDebug *dbg, int pid) {
+static int __detach(__attribute__((unused)) RDebug *dbg, __attribute__((unused)) int pid) {
     printf("%s\n", __func__);
 
     return 1;
 }
 
-static RList* __threads(RDebug *dbg, int pid) {
+static RList* __threads(__attribute__((unused)) RDebug *dbg, __attribute__((unused)) int pid) {
     printf("%s\n", __func__);
 
     return NULL;
 }
 
-static RDebugReasonType __wait(RDebug *dbg, int pid) {
+static RDebugReasonType __wait(RDebug *dbg, __attribute__((unused)) int pid) {
     RIODesc *desc = NULL;
     RIOVmi *rio_vmi = NULL;
     status_t status;
@@ -515,7 +520,7 @@ static RList *__map_get(RDebug* dbg) {
     return r_maps;
 }
 
-static RList* __modules_get(RDebug *dbg) {
+static RList* __modules_get(__attribute__((unused)) RDebug *dbg) {
     printf("%s\n", __func__);
 
     return NULL;
@@ -696,7 +701,7 @@ static const char *__reg_profile(RDebug *dbg) {
 }
 
 // "dk" send signal
-static bool __kill(RDebug *dbg, int pid, int tid, int sig) {
+static bool __kill(RDebug *dbg, __attribute__((unused)) int pid, __attribute__((unused)) int tid, int sig) {
     RIODesc *desc = NULL;
     RIOVmi *rio_vmi = NULL;
     printf("%s, sig: %d\n", __func__, sig);
@@ -714,19 +719,19 @@ static bool __kill(RDebug *dbg, int pid, int tid, int sig) {
     return true;
 }
 
-static int __select(int pid, int tid) {
+static int __select(__attribute__((unused)) int pid, __attribute__((unused)) int tid) {
     eprintf("%s\n", __func__);
 
     return 1;
 }
 
-static RDebugInfo* __info(RDebug *dbg, const char *arg) {
+static RDebugInfo* __info(__attribute__((unused)) RDebug *dbg, __attribute__((unused)) const char *arg) {
     eprintf("%s\n", __func__);
 
     return NULL;
 }
 
-static RList* __frames(RDebug *dbg, ut64 at) {
+static RList* __frames(__attribute__((unused)) RDebug *dbg, __attribute__((unused)) ut64 at) {
     eprintf("%s\n", __func__);
 
     return NULL;
@@ -757,7 +762,7 @@ static int __reg_read(RDebug *dbg, int type, ut8 *buf, int size) {
     unsigned int nb_vcpus = vmi_get_num_vcpus(rio_vmi->vmi);
 
     bool found = false;
-    for (int vcpu = 0; vcpu < nb_vcpus; vcpu++)
+    for (unsigned int vcpu = 0; vcpu < nb_vcpus; vcpu++)
     {
         // get cr3
         // if we have just attached, we cannot rely on vcpu_reg() since the VCPU

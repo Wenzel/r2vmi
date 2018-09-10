@@ -43,7 +43,7 @@ static void rio_vmi_destroy(RIOVmi *ptr)
     }
 }
 
-static bool __plugin_open(RIO *io, const char *pathname, bool many) {
+static bool __plugin_open(__attribute__((unused)) RIO *io, const char *pathname, __attribute__((unused)) bool many) {
     return (strncmp(pathname, URI_PREFIX, strlen(URI_PREFIX)) == 0);
 }
 
@@ -221,7 +221,7 @@ static int __getpid(RIODesc *fd) {
     return rio_vmi->pid;
 }
 
-static int __gettid(RIODesc *fd) {
+static int __gettid(__attribute__((unused)) RIODesc *fd) {
     printf("%s\n", __func__);
     return 0;
 }
