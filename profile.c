@@ -2,7 +2,7 @@
 
 #include "profile.h"
 
-addr_t static get_kernel_base(vmi_instance_t vmi, json_object *root)
+static addr_t get_kernel_base(vmi_instance_t vmi, json_object *root)
 {
     addr_t kernel_base;
     status_t status;
@@ -36,7 +36,7 @@ outerr:
     return 0;
 }
 
-bool static load_symbols_section(RIO *io, json_object *root,
+static bool load_symbols_section(RIO *io, json_object *root,
                                  const char *section_name, addr_t kernel_base)
 {
     json_object* section = NULL;
