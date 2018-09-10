@@ -526,7 +526,7 @@ static RList* __modules_get(__attribute__((unused)) RDebug *dbg) {
     return NULL;
 }
 
-static int __breakpoint (void *bp, RBreakpointItem *b, bool set) {
+static int __breakpoint (struct r_bp_t *bp, RBreakpointItem *b, bool set) {
     RBreakpoint* rbreak = NULL;
     // RIODesc *desc = NULL;
     RIOVmi *rio_vmi = NULL;
