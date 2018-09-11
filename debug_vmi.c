@@ -597,7 +597,7 @@ static int __breakpoint (struct r_bp_t *bp, RBreakpointItem *b, bool set) {
                     eprintf("%s: Fail to allocate memory\n", __func__);
                     return false;
                 }
-                SETUP_INTERRUPT_EVENT(bp_event, 0, cb_on_int3);
+                SETUP_INTERRUPT_EVENT(bp_event, cb_on_int3);
             }
             // add event data
             bp_event_data *event_data = calloc(1, sizeof(bp_event_data));
