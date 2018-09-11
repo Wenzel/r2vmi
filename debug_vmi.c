@@ -152,15 +152,53 @@ static event_response_t cb_on_cr3_load(vmi_instance_t vmi, vmi_event_t *event){
     return 0;
 }
 
-static event_response_t cb_on_int3(__attribute__((unused)) vmi_instance_t vmi, vmi_event_t *event){
+static event_response_t cb_on_int3(vmi_instance_t vmi, vmi_event_t *event){
+    status_t status;
+    bp_event_data *event_data;
+
     printf("%s\n", __func__);
 
     if(!event || event->type != VMI_EVENT_INTERRUPT || !event->data) {
         eprintf("ERROR (%s): invalid event encounted\n", __func__);
-        return 0;
+        return VMI_EVENT_RESPONSE_NONE;
     }
 
-    return 0;
+    // get event_data
+    event_data = (bp_event_data*) event->data;
+
+    // default reinject behavior
+    // do not reinject interrupt in the guest*
+    // TODO check list of breakpoints from r2
+    event->interrupt_event.reinject = 0;
+
+    print_event(event);
+
+    // our pid ?
+    if (event->x86_regs->cr3 == event_data->pid_cr3)
+    {
+        // pause VM
+        status = vmi_pause_vm(vmi);
+        if (VMI_FAILURE == status)
+        {
+            eprintf("%s: Fail to pause vm\n", __func__);
+        }
+        // stop listen
+        interrupted = true;
+    }
+    else
+    {
+        eprintf("%s: wrong cr3\n", __func__);
+        // TODO rewrite original instruction
+        // singlestep once
+        status = vmi_step_event(vmi, event, event->vcpu_id, 1, NULL);
+        if (VMI_FAILURE == status)
+        {
+            eprintf("fail to singlestep over int3\n");
+            return VMI_EVENT_RESPONSE_NONE;
+        }
+    }
+
+    return VMI_EVENT_RESPONSE_NONE;
 }
 
 static void unregister_breakpoint(gpointer key, gpointer value, gpointer user_data)
