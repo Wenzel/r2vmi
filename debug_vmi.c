@@ -5,8 +5,6 @@
 #include "io_vmi.h"
 #include "utils.h"
 
-static RIOVmi *g_rio_vmi = NULL;
-
 // vmi_events_listen loop
 static bool interrupted = false;
 
@@ -282,10 +280,6 @@ static int __attach(RDebug *dbg, int pid) {
         return 1;
     }
 
-
-    // hack to get rio_vmi in __breakpoint
-    g_rio_vmi = rio_vmi;
-
     status = vmi_pause_vm(rio_vmi->vmi);
     if (status == VMI_FAILURE)
     {
@@ -527,24 +521,18 @@ static RList* __modules_get(__attribute__((unused)) RDebug *dbg) {
 }
 
 static int __breakpoint (struct r_bp_t *bp, RBreakpointItem *b, bool set) {
-    RBreakpoint* rbreak = NULL;
-    // RIODesc *desc = NULL;
+    RIODesc *desc = NULL;
     RIOVmi *rio_vmi = NULL;
     status_t status;
     addr_t bp_vaddr = b->addr;
     gboolean ret;
     vmi_event_t *bp_event = NULL;
     eprintf("%s, set: %d, addr: %"PRIx64", hw: %d\n", __func__, set, bp_vaddr, b->hw);
-
     if (!bp)
         return false;
 
-    rbreak = (RBreakpoint*) bp;
-    // i don't know how to access my desc from here
-    // desc = rbreak->iob.desc_get(rbreak->iob.io, rbreak->iob.io->);
-    // rio_vmi = desc->data
-    // use g_rio_vmi for now
-    rio_vmi = g_rio_vmi;
+    desc = bp->iob.io->desc;
+    rio_vmi = (RIOVmi*) desc->data;
 
     if (set)
     {
@@ -559,7 +547,7 @@ static int __breakpoint (struct r_bp_t *bp, RBreakpointItem *b, bool set) {
             {
                 // need to translate the virtual address to physical
                 addr_t paddr;
-                status = vmi_translate_uv2p(g_rio_vmi->vmi, bp_vaddr, rio_vmi->pid, &paddr);
+                status = vmi_translate_uv2p(rio_vmi->vmi, bp_vaddr, rio_vmi->pid, &paddr);
                 if (VMI_FAILURE == status)
                 {
                     eprintf("Fail to get physical addresss\n");
@@ -583,7 +571,7 @@ static int __breakpoint (struct r_bp_t *bp, RBreakpointItem *b, bool set) {
             {
                 // write 0xCC
                 const unsigned char int3 = 0xCC;
-                bool result = rbreak->iob.write_at(rbreak->iob.io, b->addr, &int3, sizeof(int3));
+                bool result = bp->iob.write_at(bp->iob.io, b->addr, &int3, sizeof(int3));
                 if (!result)
                 {
                     eprintf("%s: Fail to write software breakpoint\n", __func__);
