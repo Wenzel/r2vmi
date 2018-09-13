@@ -557,41 +557,41 @@ bool attach_new_process(RDebug *dbg)
 
     printf("mode: %d\n", VMI_PM_IA32E);
 
-    // singlestep until userland
-    vmi_event_t sstep_event;
-    sstep_event.version = VMI_EVENTS_VERSION;
-    sstep_event.type = VMI_EVENT_SINGLESTEP;
-    sstep_event.callback = cb_on_sstep_until_userland;
-    sstep_event.ss_event.enable = 1;
-    SET_VCPU_SINGLESTEP(sstep_event.ss_event, rio_vmi->current_vcpu);
+//    // singlestep until userland
+//    vmi_event_t sstep_event;
+//    sstep_event.version = VMI_EVENTS_VERSION;
+//    sstep_event.type = VMI_EVENT_SINGLESTEP;
+//    sstep_event.callback = cb_on_sstep_until_userland;
+//    sstep_event.ss_event.enable = 1;
+//    SET_VCPU_SINGLESTEP(sstep_event.ss_event, rio_vmi->current_vcpu);
 
-    // register
-    status = vmi_register_event(rio_vmi->vmi, &sstep_event);
-    if (status == VMI_FAILURE)
-    {
-        eprintf("Fail to register event\n");
-        return false;
-    }
+//    // register
+//    status = vmi_register_event(rio_vmi->vmi, &sstep_event);
+//    if (status == VMI_FAILURE)
+//    {
+//        eprintf("Fail to register event\n");
+//        return false;
+//    }
 
-    // resume
-    status = vmi_resume_vm(rio_vmi->vmi);
-    if (status == VMI_FAILURE)
-    {
-        eprintf("Fail to resume vm\n");
-        return false;
-    }
+//    // resume
+//    status = vmi_resume_vm(rio_vmi->vmi);
+//    if (status == VMI_FAILURE)
+//    {
+//        eprintf("Fail to resume vm\n");
+//        return false;
+//    }
 
-    interrupted = false;
-    while (!interrupted)
-    {
-        vmi_events_listen(rio_vmi->vmi, 1000);
-    }
+//    interrupted = false;
+//    while (!interrupted)
+//    {
+//        vmi_events_listen(rio_vmi->vmi, 1000);
+//    }
 
-    // process rest of event queue
-    vmi_events_listen(rio_vmi->vmi, 0);
+//    // process rest of event queue
+//    vmi_events_listen(rio_vmi->vmi, 0);
 
-    // clear
-    vmi_clear_event(rio_vmi->vmi, &sstep_event, NULL);
+//    // clear
+//    vmi_clear_event(rio_vmi->vmi, &sstep_event, NULL);
 
 //    page_info_t pinfo;
 //    status = vmi_pagetable_lookup_extended(rio_vmi->vmi, rio_vmi->pid_cr3, w32_start_addr, &pinfo);
