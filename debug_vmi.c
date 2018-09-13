@@ -564,6 +564,10 @@ static int __breakpoint (struct r_bp_t *bp, RBreakpointItem *b, bool set) {
     status_t status;
     addr_t bp_vaddr = b->addr;
     gboolean ret;
+    // return value of this function
+    // whether our implementation handled the breakpoint
+    // or if r2 should do it
+    bool bp_handled = false;
     vmi_event_t *bp_event = NULL;
     eprintf("%s, set: %d, addr: %"PRIx64", hw: %d\n", __func__, set, bp_vaddr, b->hw);
     if (!bp)
@@ -583,6 +587,7 @@ static int __breakpoint (struct r_bp_t *bp, RBreakpointItem *b, bool set) {
         {
             if (b->hw)
             {
+                // hardware breakpoint
                 // need to translate the virtual address to physical
                 addr_t paddr;
                 status = vmi_translate_uv2p(rio_vmi->vmi, bp_vaddr, rio_vmi->pid, &paddr);
@@ -604,18 +609,11 @@ static int __breakpoint (struct r_bp_t *bp, RBreakpointItem *b, bool set) {
                     return false;
                 }
                 SETUP_MEM_EVENT(bp_event, gfn, VMI_MEMACCESS_X, cb_on_mem_event, 0);
+                bp_handled = true;
             }
             else
             {
-                // write 0xCC
-                const unsigned char int3 = 0xCC;
-                bool result = bp->iob.write_at(bp->iob.io, b->addr, &int3, sizeof(int3));
-                if (!result)
-                {
-                    eprintf("%s: Fail to write software breakpoint\n", __func__);
-                    return false;
-                }
-
+                // software breakpoint
                 // prepare new vmi_event
                 bp_event = calloc(1, sizeof(vmi_event_t));
                 if (!bp_event)
@@ -624,6 +622,8 @@ static int __breakpoint (struct r_bp_t *bp, RBreakpointItem *b, bool set) {
                     return false;
                 }
                 SETUP_INTERRUPT_EVENT(bp_event, cb_on_int3);
+                // r2 has to write the software breakpoint by himself
+                bp_handled = false;
             }
             // add event data
             bp_event_data *event_data = calloc(1, sizeof(bp_event_data));
@@ -642,7 +642,7 @@ static int __breakpoint (struct r_bp_t *bp, RBreakpointItem *b, bool set) {
             if (FALSE == ret)
             {
                 eprintf("%s: Fail to insert event into ghashtable\n", __func__);
-                return 1;
+                return false;
             }
 
             // register breakpoint event
@@ -651,7 +651,7 @@ static int __breakpoint (struct r_bp_t *bp, RBreakpointItem *b, bool set) {
             if (VMI_FAILURE == status)
             {
                 eprintf("%s: Fail to register event\n", __func__);
-                return 1;
+                return false;
             }
         }
     } else {
@@ -679,9 +679,12 @@ static int __breakpoint (struct r_bp_t *bp, RBreakpointItem *b, bool set) {
                 return false;
             }
 
+            bp_handled = true;
             if (!b->hw)
             {
-                // TODO write instruction back, replace int3
+                // software breakpoint
+                // r2 has to write back the original instruction
+                bp_handled = false;
             }
         }
         else
@@ -691,7 +694,7 @@ static int __breakpoint (struct r_bp_t *bp, RBreakpointItem *b, bool set) {
         }
     }
 
-    return true;
+    return bp_handled;
 }
 
 // "drp" register profile
