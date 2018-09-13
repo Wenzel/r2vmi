@@ -411,6 +411,7 @@ static RList* __threads(__attribute__((unused)) RDebug *dbg, __attribute__((unus
 }
 
 static RDebugReasonType __wait(RDebug *dbg, __attribute__((unused)) int pid) {
+    RDebugReasonType reason = R_DEBUG_REASON_UNKNOWN;
     RIODesc *desc = NULL;
     RIOVmi *rio_vmi = NULL;
     status_t status;
@@ -421,7 +422,7 @@ static RDebugReasonType __wait(RDebug *dbg, __attribute__((unused)) int pid) {
     if (!rio_vmi)
     {
         eprintf("%s: Invalid RIOVmi\n", __func__);
-        return 1;
+        return reason;
     }
 
     interrupted = false;
@@ -431,7 +432,7 @@ static RDebugReasonType __wait(RDebug *dbg, __attribute__((unused)) int pid) {
         if (status == VMI_FAILURE)
         {
             eprintf("%s: Fail to listen to events\n", __func__);
-            return false;
+            return reason;
         }
     }
 
@@ -440,7 +441,7 @@ static RDebugReasonType __wait(RDebug *dbg, __attribute__((unused)) int pid) {
     if (status == VMI_FAILURE)
     {
         eprintf("%s: fail to clear event buffer\n", __func__);
-        return false;
+        return reason;
     }
 
     // clear event if singlestep
@@ -452,7 +453,7 @@ static RDebugReasonType __wait(RDebug *dbg, __attribute__((unused)) int pid) {
         if (VMI_FAILURE == status)
         {
             eprintf("%s: Fail to clear event\n", __func__);
-            return false;
+            return reason;
         }
         free(rio_vmi->sstep_event);
         rio_vmi->sstep_event = NULL;
@@ -463,7 +464,7 @@ static RDebugReasonType __wait(RDebug *dbg, __attribute__((unused)) int pid) {
     // invalidate attach_cr3
     rio_vmi->pid_cr3 = 0;
 
-    return 0;
+    return R_DEBUG_REASON_BREAKPOINT;
 }
 
 // "dm" get memory maps of target process
