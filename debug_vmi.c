@@ -168,7 +168,7 @@ static event_response_t cb_on_int3(vmi_instance_t vmi, vmi_event_t *event){
     event_data = (bp_event_data*) event->data;
 
     // process name
-    proc_name = dtb_to_pname(vmi, event->reg_event.value);
+    proc_name = dtb_to_pname(vmi, event->x86_regs->cr3);
 
     // default reinject behavior
     // do not reinject interrupt in the guest*
