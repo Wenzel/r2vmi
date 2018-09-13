@@ -155,6 +155,7 @@ static event_response_t cb_on_cr3_load(vmi_instance_t vmi, vmi_event_t *event){
 static event_response_t cb_on_int3(vmi_instance_t vmi, vmi_event_t *event){
     status_t status;
     bp_event_data *event_data;
+    char *proc_name = NULL;
 
     printf("%s\n", __func__);
 
@@ -166,12 +167,13 @@ static event_response_t cb_on_int3(vmi_instance_t vmi, vmi_event_t *event){
     // get event_data
     event_data = (bp_event_data*) event->data;
 
+    // process name
+    proc_name = dtb_to_pname(vmi, event->reg_event.value);
+
     // default reinject behavior
     // do not reinject interrupt in the guest*
     // TODO check list of breakpoints from r2
     event->interrupt_event.reinject = 0;
-
-    print_event(event);
 
     // our pid ?
     if (event->x86_regs->cr3 == event_data->pid_cr3)
@@ -187,8 +189,11 @@ static event_response_t cb_on_int3(vmi_instance_t vmi, vmi_event_t *event){
     }
     else
     {
-        eprintf("%s: wrong cr3\n", __func__);
-        // TODO rewrite original instruction
+        eprintf("%s: wrong cr3 (0x%lx) process: %s\n", __func__, event->x86_regs->cr3, proc_name);
+        eprintf("%s: write back original opcode\n", __func__);
+        // unset bp (rewrite original instruction)
+        r_bp_restore_one(event_data->bp, event_data->bpitem, false);
+        eprintf("%s: singlestep once\n", __func__);
         // singlestep once
         status = vmi_step_event(vmi, event, event->vcpu_id, 1, NULL);
         if (VMI_FAILURE == status)
@@ -196,6 +201,9 @@ static event_response_t cb_on_int3(vmi_instance_t vmi, vmi_event_t *event){
             eprintf("fail to singlestep over int3\n");
             return VMI_EVENT_RESPONSE_NONE;
         }
+        eprintf("%s: restore breakpoint\n", __func__);
+        // restore breakpoint
+        r_bp_restore_one(event_data->bp, event_data->bpitem, true);
     }
 
     return VMI_EVENT_RESPONSE_NONE;
@@ -634,6 +642,8 @@ static int __breakpoint (struct r_bp_t *bp, RBreakpointItem *b, bool set) {
             }
             event_data->pid_cr3 = rio_vmi->pid_cr3;
             event_data->bp_vaddr = bp_vaddr;
+            event_data->bp = bp;
+            event_data->bpitem = b;
             bp_event->data = event_data;
 
             // add our breakpoint to the hashtable
