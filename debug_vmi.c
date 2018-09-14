@@ -176,35 +176,22 @@ static event_response_t cb_on_int3(vmi_instance_t vmi, vmi_event_t *event){
     event->interrupt_event.reinject = 0;
 
     // our pid ?
-    if (event->x86_regs->cr3 == event_data->pid_cr3)
-    {
-        // pause VM
-        status = vmi_pause_vm(vmi);
-        if (VMI_FAILURE == status)
-        {
-            eprintf("%s: Fail to pause vm\n", __func__);
-        }
-        // stop listen
-        interrupted = true;
-    }
-    else
+    if (event->x86_regs->cr3 != event_data->pid_cr3)
     {
         eprintf("%s: wrong cr3 (0x%lx) process: %s\n", __func__, event->x86_regs->cr3, proc_name);
-        eprintf("%s: write back original opcode\n", __func__);
-        // unset bp (rewrite original instruction)
-        r_bp_restore_one(event_data->bp, event_data->bpitem, false);
-        eprintf("%s: singlestep once\n", __func__);
-        // singlestep once
-        status = vmi_step_event(vmi, event, event->vcpu_id, 1, NULL);
-        if (VMI_FAILURE == status)
-        {
-            eprintf("fail to singlestep over int3\n");
-            return VMI_EVENT_RESPONSE_NONE;
-        }
-        eprintf("%s: restore breakpoint\n", __func__);
-        // restore breakpoint
-        r_bp_restore_one(event_data->bp, event_data->bpitem, true);
     }
+
+    // break on every process
+    event_data->rio_vmi->pid_cr3 = event->x86_regs->cr3;
+    vmi_dtb_to_pid(vmi, event->x86_regs->cr3, &event_data->rio_vmi->pid);
+    // pause VM
+    status = vmi_pause_vm(vmi);
+    if (VMI_FAILURE == status)
+    {
+        eprintf("%s: Fail to pause vm\n", __func__);
+    }
+    // stop listen
+    interrupted = true;
 
     return VMI_EVENT_RESPONSE_NONE;
 }
@@ -645,6 +632,7 @@ static int __breakpoint (struct r_bp_t *bp, RBreakpointItem *b, bool set) {
             event_data->bp_vaddr = bp_vaddr;
             event_data->bp = bp;
             event_data->bpitem = b;
+            event_data->rio_vmi = rio_vmi;
             bp_event->data = event_data;
 
             // add our breakpoint to the hashtable
