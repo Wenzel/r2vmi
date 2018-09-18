@@ -276,13 +276,32 @@ static int __step(RDebug *dbg) {
     g_hash_table_foreach(rio_vmi->bp_events_table, unregister_breakpoint, (gpointer) rio_vmi);
 
     // enabled singlestep
-    rio_vmi->sstep_event->ss_event.enable = 1;
+    // hack around lack of API in LibVMI
+    // clear current event
+    status = vmi_clear_event(rio_vmi->vmi, rio_vmi->sstep_event, NULL);
+    if (VMI_FAILURE == status)
+    {
+        eprintf("%s: fail to clear event\n", __func__);
+        return false;
+    }
+
+    // resetup singlestep event, enabled
+    SETUP_SINGLESTEP_EVENT(rio_vmi->sstep_event, 1u << 0, cb_on_sstep, true);
+    // clear data field (not a software breakpoint)
+    rio_vmi->sstep_event->data = NULL;
+    // register event
+    status = vmi_register_event(rio_vmi->vmi, rio_vmi->sstep_event);
+    if (status == VMI_FAILURE)
+    {
+        eprintf("%s: fail to register event\n", __func__);
+        return false;
+    }
 
     status = vmi_resume_vm(rio_vmi->vmi);
     if (status == VMI_FAILURE)
     {
         eprintf("%s: Failed to resume VM execution\n", __func__);
-        return 1;
+        return false;
     }
 
     return true;
@@ -462,9 +481,27 @@ static RDebugReasonType __wait(RDebug *dbg, __attribute__((unused)) int pid) {
     // clear event if singlestep
     // breakpoint events are cleared in __breakpoint if unset
     // was it a single step ?
-    if (rio_vmi->sstep_event->ss_event.enable)
+    if (!rio_vmi->sstep_event->data)
     {
-        rio_vmi->sstep_event->ss_event.enable = 0;
+        // hack around lack of API in LibVMI
+        status = vmi_clear_event(rio_vmi->vmi, rio_vmi->sstep_event, NULL);
+        if (VMI_FAILURE == status)
+        {
+            eprintf("%s: fail to clear event\n", __func__);
+            return false;
+        }
+
+        // set singlestep event, disabled
+        SETUP_SINGLESTEP_EVENT(rio_vmi->sstep_event, 1u << 0, cb_on_sstep, false);
+        rio_vmi->sstep_event->data = NULL;
+        // register it
+        status = vmi_register_event(rio_vmi->vmi, rio_vmi->sstep_event);
+        if (VMI_FAILURE == status)
+        {
+            eprintf("%s: fail to register event\n", __func__);
+            return false;
+        }
+
         // re-register all breakpoint events that we previously unregistered
         g_hash_table_foreach(rio_vmi->bp_events_table, register_breakpoint, (gpointer) rio_vmi);
     }
