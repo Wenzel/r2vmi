@@ -16,16 +16,29 @@ static event_response_t cb_on_mem_event(vmi_instance_t vmi, vmi_event_t *event){
     status_t status;
     bp_event_data *event_data;
     const char *pname = NULL;
+    RIOVmi *rio_vmi = NULL;
 
     eprintf("%s\n", __func__);
 
     if(!event || event->type != VMI_EVENT_MEMORY || !event->data) {
         eprintf("ERROR (%s): invalid event encounted\n", __func__);
-        return 0;
+        return VMI_EVENT_RESPONSE_NONE;
     }
 
     // get event_data
     event_data = (bp_event_data*) event->data;
+    rio_vmi = event_data->rio_vmi;
+
+    // did we catched a memory event while the user was simply asking for a singlestep ?
+    if (rio_vmi->cmd_sstep)
+    {
+        // clear the memory event
+        // so that the singlestep event can work
+        status = vmi_clear_event(vmi, event, NULL);
+        if (VMI_FAILURE == status)
+            eprintf("%s: fail to clear event\n", __func__);
+        return VMI_EVENT_RESPONSE_NONE;
+    }
 
     pname = dtb_to_pname(vmi, event->x86_regs->cr3);
 
@@ -223,34 +236,6 @@ static event_response_t cb_on_int3(vmi_instance_t vmi, vmi_event_t *event){
     }
 }
 
-static void unregister_breakpoint(gpointer key, gpointer value, gpointer user_data)
-{
-    addr_t bp_vaddr = (addr_t) key;
-    vmi_event_t *event = (vmi_event_t*) value;
-    RIOVmi *rio_vmi = (RIOVmi*) user_data;
-    status_t status;
-
-    status = vmi_clear_event(rio_vmi->vmi, event, NULL);
-    if (VMI_FAILURE == status)
-    {
-        eprintf("%s: Fail to clear breakpoint %"PRIx64"\n", __func__, bp_vaddr);
-    }
-}
-
-static void register_breakpoint(gpointer key, gpointer value, gpointer user_data)
-{
-    addr_t bp_vaddr = (addr_t) key;
-    vmi_event_t *event = (vmi_event_t*) value;
-    RIOVmi *rio_vmi = (RIOVmi*) user_data;
-    status_t status;
-
-    status = vmi_register_event(rio_vmi->vmi, event);
-    if (VMI_FAILURE == status)
-    {
-        eprintf("%s: Fail to register breakpoint %"PRIx64"\n", __func__, bp_vaddr);
-    }
-}
-
 
 //
 // R2 debug interface
@@ -270,12 +255,7 @@ static int __step(RDebug *dbg) {
         return 1;
     }
 
-    // clear all breakpoint events
-    // otherwise we risk to get a breakpoint event instead of singlestep event
-    // if they are on the same RIP
-    g_hash_table_foreach(rio_vmi->bp_events_table, unregister_breakpoint, (gpointer) rio_vmi);
-
-    // enabled singlestep
+    // enable singlestep
     // hack around lack of API in LibVMI
     // clear current event
     status = vmi_clear_event(rio_vmi->vmi, rio_vmi->sstep_event, NULL);
@@ -303,6 +283,9 @@ static int __step(RDebug *dbg) {
         eprintf("%s: Failed to resume VM execution\n", __func__);
         return false;
     }
+
+    // we are in the command singlestep
+    rio_vmi->cmd_sstep = true;
 
     return true;
 }
@@ -481,7 +464,7 @@ static RDebugReasonType __wait(RDebug *dbg, __attribute__((unused)) int pid) {
     // clear event if singlestep
     // breakpoint events are cleared in __breakpoint if unset
     // was it a single step ?
-    if (!rio_vmi->sstep_event->data)
+    if (rio_vmi->cmd_sstep)
     {
         // hack around lack of API in LibVMI
         status = vmi_clear_event(rio_vmi->vmi, rio_vmi->sstep_event, NULL);
@@ -502,8 +485,7 @@ static RDebugReasonType __wait(RDebug *dbg, __attribute__((unused)) int pid) {
             return false;
         }
 
-        // re-register all breakpoint events that we previously unregistered
-        g_hash_table_foreach(rio_vmi->bp_events_table, register_breakpoint, (gpointer) rio_vmi);
+        rio_vmi->cmd_sstep = false;
 
         reason = R_DEBUG_REASON_STEP;
     }
@@ -639,6 +621,7 @@ static int __breakpoint (struct r_bp_t *bp, RBreakpointItem *b, bool set) {
         // in case of single stepping for example, radare2 still calls this API
         // for each breakpoint before the single-step
         // therefore, check if the breakpoint has already been inserted
+
         bp_event = (vmi_event_t*) g_hash_table_lookup(rio_vmi->bp_events_table, GINT_TO_POINTER(bp_vaddr));
         if (!bp_event)
         {
@@ -749,8 +732,8 @@ static int __breakpoint (struct r_bp_t *bp, RBreakpointItem *b, bool set) {
         }
         else
         {
-            eprintf("%s: Fail to find breakpoint in table\n", __func__);
-            return false;
+            eprintf("%s: Breakpoint already disabled\n", __func__);
+            bp_handled = true;
         }
     }
 
