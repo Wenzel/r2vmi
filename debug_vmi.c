@@ -409,7 +409,7 @@ static int __attach(RDebug *dbg, int pid) {
     rio_vmi->attached = true;
 
     // init singlestep event (not enabled)
-    rio_vmi->sstep_event = calloc(1, sizeof(vmi_event_t));
+    rio_vmi->sstep_event = R_NEW0(vmi_event_t);
     SETUP_SINGLESTEP_EVENT(rio_vmi->sstep_event, 1u << 0, cb_on_sstep, false);
     // register event
     status = vmi_register_event(rio_vmi->vmi, rio_vmi->sstep_event);
@@ -659,7 +659,7 @@ static int __breakpoint (struct r_bp_t *bp, RBreakpointItem *b, bool set) {
                 eprintf("%s: paddr: %016"PRIx64", gfn: %"PRIx64"\n", __func__, paddr, gfn);
 
                 // prepare new vmi_event
-                bp_event = calloc(1, sizeof(vmi_event_t));
+                bp_event = R_NEW0(vmi_event_t);
                 if (!bp_event)
                 {
                     eprintf("%s: Fail to allocate memory\n", __func__);
@@ -672,7 +672,7 @@ static int __breakpoint (struct r_bp_t *bp, RBreakpointItem *b, bool set) {
             {
                 // software breakpoint
                 // prepare new vmi_event
-                bp_event = calloc(1, sizeof(vmi_event_t));
+                bp_event = R_NEW0(vmi_event_t);
                 if (!bp_event)
                 {
                     eprintf("%s: Fail to allocate memory\n", __func__);
@@ -683,7 +683,7 @@ static int __breakpoint (struct r_bp_t *bp, RBreakpointItem *b, bool set) {
                 bp_handled = false;
             }
             // add event data
-            bp_event_data *event_data = calloc(1, sizeof(bp_event_data));
+            bp_event_data *event_data = R_NEW0(bp_event_data);
             if (!event_data)
             {
                 eprintf("%s: Fail to allocate memory\n", __func__);
