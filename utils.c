@@ -182,6 +182,81 @@ status_t vmi_dtb_to_pid_extended_idle(vmi_instance_t vmi, addr_t dtb, vmi_pid_t 
     return VMI_SUCCESS;
 }
 
+static event_response_t cb_on_cr3_load(vmi_instance_t vmi, vmi_event_t *event){
+    RIOVmi *rio_vmi = NULL;
+    status_t status;
+    pid_t pid = 0;
+    char* proc_name = NULL;
+
+    printf("%s\n", __func__);
+
+    if(!event || event->type != VMI_EVENT_REGISTER || !event->data) {
+        eprintf("ERROR (%s): invalid event encounted\n", __func__);
+        return 0;
+    }
+
+    // get event data
+    rio_vmi = (RIOVmi*) event->data;
+
+    // process name
+    proc_name = dtb_to_pname(vmi, event->reg_event.value);
+    if (!proc_name)
+    {
+        printf("CR3: 0x%lx can't find process\n", event->reg_event.value);
+        // stop monitoring
+        interrupted = true;
+        // pause the VM before we get out of main loop
+        status = vmi_pause_vm(vmi);
+        if (status == VMI_FAILURE)
+        {
+            eprintf("%s: Fail to pause VM\n", __func__);
+            return 0;
+        }
+        // if we can't find the process in the list
+        // it means we have intercepted a new CR3
+        rio_vmi->attach_new_process = true;
+        // set current VCPU
+        rio_vmi->current_vcpu = event->vcpu_id;
+        // save new CR3 value
+        rio_vmi->pid_cr3 = event->reg_event.value;
+        return 0;
+    }
+
+    status = vmi_dtb_to_pid_extended_idle(vmi, (addr_t) event->reg_event.value, &pid);
+    if (status == VMI_FAILURE)
+    {
+        eprintf("ERROR (%s): fail to retrieve pid from cr3\n", __func__);
+        return 0;
+    }
+
+    printf("Intercepted PID: %d, CR3: 0x%lx, Name: %s, RIP: 0x%lx\n",
+           pid, event->reg_event.value, proc_name, event->x86_regs->rip);
+
+    if (is_target_process(rio_vmi, proc_name, event->reg_event.value))
+    {
+        // delete old and maybe partial name for the full proc name
+        free(rio_vmi->proc_name);
+        rio_vmi->proc_name = strdup(proc_name);
+        printf("Found %s (%d)!\n", rio_vmi->proc_name, rio_vmi->pid);
+        // stop monitoring
+        interrupted = true;
+        // pause the VM before we get out of main loop
+        status = vmi_pause_vm(vmi);
+        if (status == VMI_FAILURE)
+        {
+            eprintf("%s: Fail to pause VM\n", __func__);
+            return 0;
+        }
+        // set current VCPU
+        rio_vmi->current_vcpu = event->vcpu_id;
+        // save new CR3 value
+        rio_vmi->pid_cr3 = event->reg_event.value;
+    }
+    free(proc_name);
+
+    return 0;
+}
+
 static event_response_t cb_on_sstep(vmi_instance_t vmi, vmi_event_t *event)
 {
     status_t status;
@@ -683,4 +758,78 @@ bool is_target_process(RIOVmi *rio_vmi, const char *proc_name, uint64_t dtb)
         return true;
     }
     return false;
+}
+
+bool intercept_process(RDebug *dbg, int pid)
+{
+    RIODesc *desc = NULL;
+    RIOVmi *rio_vmi = NULL;
+    status_t status = 0;
+
+    printf("Attaching to pid %d...\n", pid);
+
+    desc = dbg->iob.io->desc;
+    rio_vmi = desc->data;
+    if (!rio_vmi)
+    {
+        eprintf("%s: Invalid RIOVmi\n", __func__);
+        return 1;
+    }
+
+    status = vmi_pause_vm(rio_vmi->vmi);
+    if (status == VMI_FAILURE)
+    {
+        eprintf("%s: Fail to pause VM\n", __func__);
+        return 1;
+    }
+
+    vmi_event_t cr3_load_event = {0};
+    SETUP_REG_EVENT(&cr3_load_event, CR3, VMI_REGACCESS_W, 0, cb_on_cr3_load);
+
+    // setting event data
+    cr3_load_event.data = (void*) rio_vmi;
+
+    status = vmi_register_event(rio_vmi->vmi, &cr3_load_event);
+    if (status == VMI_FAILURE)
+    {
+        eprintf("%s: vmi event registration failure\n", __func__);
+        return false;
+    }
+
+    status = vmi_resume_vm(rio_vmi->vmi);
+    if (status == VMI_FAILURE)
+    {
+        eprintf("%s: Fail to resume VM\n", __func__);
+        return false;
+    }
+
+    interrupted = false;
+    while (!interrupted)
+    {
+        printf("Listening on VMI events...\n");
+        status = vmi_events_listen(rio_vmi->vmi, 1000);
+        if (status == VMI_FAILURE)
+        {
+            interrupted = true;
+            return false;
+        }
+    }
+
+    // unregister cr3 event
+    status = vmi_clear_event(rio_vmi->vmi, &cr3_load_event, NULL);
+    if (status == VMI_FAILURE)
+    {
+        eprintf("%s Fail to clear event\n", __func__);
+        return false;
+    }
+
+    // clear event buffer if any
+    status = vmi_events_listen(rio_vmi->vmi, 0);
+    if (status == VMI_FAILURE)
+    {
+        eprintf("%s: Fail to clear event buffer\n", __func__);
+        return false;
+    }
+
+    return true;
 }

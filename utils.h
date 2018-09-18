@@ -13,5 +13,7 @@ char* dtb_to_pname(vmi_instance_t vmi, addr_t dtb);
 status_t vmi_dtb_to_pid_extended_idle(vmi_instance_t vmi, addr_t dtb, vmi_pid_t *pid);
 bool attach_new_process(RDebug *dbg);
 bool is_target_process(RIOVmi *rio_vmi, const char *proc_name, uint64_t dtb);
+bool intercept_process(RDebug *dbg, int pid);
+
 
 #endif // !UTILS_h
