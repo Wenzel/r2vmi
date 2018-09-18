@@ -19,6 +19,8 @@ typedef struct {
     vmi_instance_t vmi;
     bool attached;
     vmi_event_t *sstep_event;
+    // whether the action/command singlestep has been requested
+    bool cmd_sstep;
     // table [rip] -> [vmi_event_t]
     // event might be int3 or mem_event
     GHashTable *bp_events_table;
