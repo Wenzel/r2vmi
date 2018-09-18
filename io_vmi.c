@@ -114,7 +114,6 @@ static RIODesc *__open(RIO *io, const char *pathname, int flags, int mode) {
         goto out;
     }
 
-
     return r_io_desc_new (io, &r_io_plugin_vmi, pathname, flags | R_IO_WRITE, mode, rio_vmi);
 
 out:

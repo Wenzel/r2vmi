@@ -60,7 +60,6 @@ static event_response_t cb_on_mem_event(vmi_instance_t vmi, vmi_event_t *event){
 static event_response_t cb_on_sstep(vmi_instance_t vmi, vmi_event_t *event) {
     status_t status;
     bp_event_data *event_data = NULL;
-    RIOVmi *rio_vmi = NULL;
 
     printf("%s\n", __func__);
 
@@ -74,19 +73,10 @@ static event_response_t cb_on_sstep(vmi_instance_t vmi, vmi_event_t *event) {
     {
         // coming from software breakpoint
         event_data = (bp_event_data*) event->data;
-        rio_vmi = event_data->rio_vmi;
         // restore software breakpoint
         r_bp_restore_one(event_data->bp, event_data->bpitem, true);
-        // unregister singlestep event
-        status = vmi_clear_event(vmi, rio_vmi->sstep_event_int3, NULL);
-        if (VMI_FAILURE == status)
-        {
-            eprintf("%s: fail to clear event\n", __func__);
-            return VMI_EVENT_RESPONSE_NONE;
-        }
-        // free struct
-        free(rio_vmi->sstep_event_int3);
-        rio_vmi->sstep_event_int3 = NULL;
+        // null event data
+        event->data = NULL;
         // toggle singlestep OFF
         return VMI_EVENT_RESPONSE_TOGGLE_SINGLESTEP;
     }
@@ -208,23 +198,9 @@ static event_response_t cb_on_int3(vmi_instance_t vmi, vmi_event_t *event){
     if (event->x86_regs->cr3 != event_data->pid_cr3)
     {
         eprintf("%s: wrong cr3 (0x%lx) process: %s\n", __func__, event->x86_regs->cr3, proc_name);
-        // prepare singlestep event
-        rio_vmi->sstep_event_int3 = calloc(1, sizeof(vmi_event_t));
-        rio_vmi->sstep_event_int3->version = VMI_EVENTS_VERSION;
-        rio_vmi->sstep_event_int3->type = VMI_EVENT_SINGLESTEP;
-        rio_vmi->sstep_event_int3->callback = cb_on_sstep;
-        rio_vmi->sstep_event_int3->ss_event.enable = 0;
 
-        // add event data
-        rio_vmi->sstep_event_int3->data = event->data;
-
-        // register event
-        status = vmi_register_event(vmi, rio_vmi->sstep_event_int3);
-        if (VMI_FAILURE == status)
-        {
-            eprintf("%s: fail to register event\n", __func__);
-            return VMI_EVENT_RESPONSE_NONE;
-        }
+        // add event data to singlestep event already registered
+        rio_vmi->sstep_event->data = event->data;
 
         // restore original opcode
         r_bp_restore_one(event_data->bp, event_data->bpitem, false);
@@ -299,18 +275,8 @@ static int __step(RDebug *dbg) {
     // if they are on the same RIP
     g_hash_table_foreach(rio_vmi->bp_events_table, unregister_breakpoint, (gpointer) rio_vmi);
 
-    rio_vmi->sstep_event = calloc(1, sizeof(vmi_event_t));
-    rio_vmi->sstep_event->version = VMI_EVENTS_VERSION;
-    rio_vmi->sstep_event->type = VMI_EVENT_SINGLESTEP;
-    rio_vmi->sstep_event->callback = cb_on_sstep;
+    // enabled singlestep
     rio_vmi->sstep_event->ss_event.enable = 1;
-    SET_VCPU_SINGLESTEP(rio_vmi->sstep_event->ss_event, rio_vmi->current_vcpu);
-    status = vmi_register_event(rio_vmi->vmi, rio_vmi->sstep_event);
-    if (status == VMI_FAILURE)
-    {
-        eprintf("%s: Failed to register event\n", __func__);
-        return false;
-    }
 
     status = vmi_resume_vm(rio_vmi->vmi);
     if (status == VMI_FAILURE)
@@ -423,6 +389,17 @@ static int __attach(RDebug *dbg, int pid) {
     // set attached to allow reg_read
     rio_vmi->attached = true;
 
+    // init singlestep event (not enabled)
+    rio_vmi->sstep_event = calloc(1, sizeof(vmi_event_t));
+    SETUP_SINGLESTEP_EVENT(rio_vmi->sstep_event, 1u << 0, cb_on_sstep, false);
+    // register event
+    status = vmi_register_event(rio_vmi->vmi, rio_vmi->sstep_event);
+    if (VMI_FAILURE == status)
+    {
+        eprintf("%s: fail to register event\n", __func__);
+        return VMI_EVENT_RESPONSE_NONE;
+    }
+
     // did we attached to a new process ?
     if (rio_vmi->attach_new_process)
     {
@@ -485,16 +462,9 @@ static RDebugReasonType __wait(RDebug *dbg, __attribute__((unused)) int pid) {
     // clear event if singlestep
     // breakpoint events are cleared in __breakpoint if unset
     // was it a single step ?
-    if (rio_vmi->sstep_event)
+    if (rio_vmi->sstep_event->ss_event.enable)
     {
-        status = vmi_clear_event(rio_vmi->vmi, rio_vmi->sstep_event, NULL);
-        if (VMI_FAILURE == status)
-        {
-            eprintf("%s: Fail to clear event\n", __func__);
-            return reason;
-        }
-        free(rio_vmi->sstep_event);
-        rio_vmi->sstep_event = NULL;
+        rio_vmi->sstep_event->ss_event.enable = 0;
         // re-register all breakpoint events that we previously unregistered
         g_hash_table_foreach(rio_vmi->bp_events_table, register_breakpoint, (gpointer) rio_vmi);
     }

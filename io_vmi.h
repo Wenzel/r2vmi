@@ -19,8 +19,6 @@ typedef struct {
     vmi_instance_t vmi;
     bool attached;
     vmi_event_t *sstep_event;
-    // singlestep event over a software interrupt (breakpoint)
-    vmi_event_t *sstep_event_int3;
     // table [rip] -> [vmi_event_t]
     // event might be int3 or mem_event
     GHashTable *bp_events_table;
