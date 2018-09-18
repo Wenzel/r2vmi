@@ -564,7 +564,7 @@ static RList *__map_get(RDebug* dbg) {
         // new map name
         int str_nb_size = sprintf(str_nb, "%d", nb);
         char *map_name = calloc(strlen(unknown) + str_nb_size + 1, 1);
-        strncat(map_name, unknown, sizeof(unknown));
+        strncat(map_name, unknown, strlen(map_name));
         strncat(map_name, str_nb, str_nb_size);
         // get permissions
         switch (page_mode) {
