@@ -59,6 +59,8 @@ static event_response_t cb_on_mem_event(vmi_instance_t vmi, vmi_event_t *event){
 
 static event_response_t cb_on_sstep(vmi_instance_t vmi, vmi_event_t *event) {
     status_t status;
+    bp_event_data *event_data = NULL;
+    RIOVmi *rio_vmi = NULL;
 
     printf("%s\n", __func__);
 
@@ -67,14 +69,39 @@ static event_response_t cb_on_sstep(vmi_instance_t vmi, vmi_event_t *event) {
         return 0;
     }
 
-    // stop monitoring
-    interrupted = true;
-    // pause the VM before exiting the callback
-    status = vmi_pause_vm(vmi);
-    if (status == VMI_FAILURE)
-        eprintf("%s: Fail to pause VM\n", __func__);
+    // event data ?
+    if (event->data)
+    {
+        // coming from software breakpoint
+        event_data = (bp_event_data*) event->data;
+        rio_vmi = event_data->rio_vmi;
+        // restore software breakpoint
+        r_bp_restore_one(event_data->bp, event_data->bpitem, true);
+        // unregister singlestep event
+        status = vmi_clear_event(vmi, rio_vmi->sstep_event_int3, NULL);
+        if (VMI_FAILURE == status)
+        {
+            eprintf("%s: fail to clear event\n", __func__);
+            return VMI_EVENT_RESPONSE_NONE;
+        }
+        // free struct
+        free(rio_vmi->sstep_event_int3);
+        rio_vmi->sstep_event_int3 = NULL;
+        // toggle singlestep OFF
+        return VMI_EVENT_RESPONSE_TOGGLE_SINGLESTEP;
+    }
+    else
+    {
+        // simple singlestep
+        // stop monitoring
+        interrupted = true;
+        // pause the VM before exiting the callback
+        status = vmi_pause_vm(vmi);
+        if (status == VMI_FAILURE)
+            eprintf("%s: Fail to pause VM\n", __func__);
 
-    return 0;
+        return VMI_EVENT_RESPONSE_NONE;
+    }
 }
 
 static event_response_t cb_on_cr3_load(vmi_instance_t vmi, vmi_event_t *event){
@@ -156,6 +183,7 @@ static event_response_t cb_on_int3(vmi_instance_t vmi, vmi_event_t *event){
     status_t status;
     bp_event_data *event_data;
     char *proc_name = NULL;
+    RIOVmi *rio_vmi = NULL;
 
     printf("%s\n", __func__);
 
@@ -166,6 +194,7 @@ static event_response_t cb_on_int3(vmi_instance_t vmi, vmi_event_t *event){
 
     // get event_data
     event_data = (bp_event_data*) event->data;
+    rio_vmi = event_data->rio_vmi;
 
     // process name
     proc_name = dtb_to_pname(vmi, event->x86_regs->cr3);
@@ -175,25 +204,47 @@ static event_response_t cb_on_int3(vmi_instance_t vmi, vmi_event_t *event){
     // TODO check list of breakpoints from r2
     event->interrupt_event.reinject = 0;
 
-    // our pid ?
+    // our targeted process ?
     if (event->x86_regs->cr3 != event_data->pid_cr3)
     {
         eprintf("%s: wrong cr3 (0x%lx) process: %s\n", __func__, event->x86_regs->cr3, proc_name);
-    }
+        // prepare singlestep event
+        rio_vmi->sstep_event_int3 = calloc(1, sizeof(vmi_event_t));
+        rio_vmi->sstep_event_int3->version = VMI_EVENTS_VERSION;
+        rio_vmi->sstep_event_int3->type = VMI_EVENT_SINGLESTEP;
+        rio_vmi->sstep_event_int3->callback = cb_on_sstep;
+        rio_vmi->sstep_event_int3->ss_event.enable = 0;
 
-    // break on every process
-    event_data->rio_vmi->pid_cr3 = event->x86_regs->cr3;
-    vmi_dtb_to_pid(vmi, event->x86_regs->cr3, &event_data->rio_vmi->pid);
-    // pause VM
-    status = vmi_pause_vm(vmi);
-    if (VMI_FAILURE == status)
+        // add event data
+        rio_vmi->sstep_event_int3->data = event->data;
+
+        // register event
+        status = vmi_register_event(vmi, rio_vmi->sstep_event_int3);
+        if (VMI_FAILURE == status)
+        {
+            eprintf("%s: fail to register event\n", __func__);
+            return VMI_EVENT_RESPONSE_NONE;
+        }
+
+        // restore original opcode
+        r_bp_restore_one(event_data->bp, event_data->bpitem, false);
+
+        // toggle singlestep ON
+        return VMI_EVENT_RESPONSE_TOGGLE_SINGLESTEP;
+    }
+    else
     {
-        eprintf("%s: Fail to pause vm\n", __func__);
-    }
-    // stop listen
-    interrupted = true;
+        // pause VM
+        status = vmi_pause_vm(vmi);
+        if (VMI_FAILURE == status)
+        {
+            eprintf("%s: Fail to pause vm\n", __func__);
+        }
+        // stop listen
+        interrupted = true;
 
-    return VMI_EVENT_RESPONSE_NONE;
+        return VMI_EVENT_RESPONSE_NONE;
+    }
 }
 
 static void unregister_breakpoint(gpointer key, gpointer value, gpointer user_data)
