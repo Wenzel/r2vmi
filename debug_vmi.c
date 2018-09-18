@@ -29,17 +29,17 @@ static event_response_t cb_on_mem_event(vmi_instance_t vmi, vmi_event_t *event){
 
     pname = dtb_to_pname(vmi, event->x86_regs->cr3);
 
+    // our pid ?
+    if (event->x86_regs->cr3 != event_data->pid_cr3)
+    {
+        eprintf("%s: wrong cr3 (%s)(0x%lx)\n", __func__, pname, event->x86_regs->cr3);
+        return VMI_EVENT_RESPONSE_EMULATE;
+    }
+
     // at the right rip ?
     if (!vaddr_equal(vmi, event->x86_regs->rip, event_data->bp_vaddr))
     {
         eprintf("%s: wrong rip: %"PRIx64" (bp_vaddr: %"PRIx64")\n", __func__, event->x86_regs->rip, event_data->bp_vaddr);
-        return VMI_EVENT_RESPONSE_EMULATE;
-    }
-
-    // our pid ?
-    if (event->x86_regs->cr3 != event_data->pid_cr3)
-    {
-        eprintf("%s: wrong cr3 (%s)\n", __func__, pname);
         return VMI_EVENT_RESPONSE_EMULATE;
     }
 
@@ -197,7 +197,7 @@ static event_response_t cb_on_int3(vmi_instance_t vmi, vmi_event_t *event){
     // our targeted process ?
     if (event->x86_regs->cr3 != event_data->pid_cr3)
     {
-        eprintf("%s: wrong cr3 (0x%lx) process: %s\n", __func__, event->x86_regs->cr3, proc_name);
+        eprintf("%s: wrong process %s (0x%lx)\n", __func__, proc_name, event->x86_regs->cr3);
 
         // add event data to singlestep event already registered
         rio_vmi->sstep_event->data = event->data;
@@ -505,9 +505,6 @@ static RDebugReasonType __wait(RDebug *dbg, __attribute__((unused)) int pid) {
         // re-register all breakpoint events that we previously unregistered
         g_hash_table_foreach(rio_vmi->bp_events_table, register_breakpoint, (gpointer) rio_vmi);
     }
-
-    // invalidate attach_cr3
-    rio_vmi->pid_cr3 = 0;
 
     return R_DEBUG_REASON_BREAKPOINT;
 }
@@ -857,6 +854,8 @@ static int __reg_read(RDebug *dbg, int type, ut8 *buf, int size) {
             cr3 = rio_vmi->pid_cr3;
         else
         {
+            // TODO: never reached, pid_cr3 is set since cb_on_cr3_load
+            // and is always valid
             status = vmi_get_vcpureg(rio_vmi->vmi, &cr3, CR3, vcpu);
             if (status == VMI_FAILURE)
             {
