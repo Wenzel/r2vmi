@@ -504,9 +504,15 @@ static RDebugReasonType __wait(RDebug *dbg, __attribute__((unused)) int pid) {
 
         // re-register all breakpoint events that we previously unregistered
         g_hash_table_foreach(rio_vmi->bp_events_table, register_breakpoint, (gpointer) rio_vmi);
+
+        reason = R_DEBUG_REASON_STEP;
+    }
+    else
+    {
+        reason = R_DEBUG_REASON_BREAKPOINT;
     }
 
-    return R_DEBUG_REASON_BREAKPOINT;
+    return reason;
 }
 
 // "dm" get memory maps of target process
