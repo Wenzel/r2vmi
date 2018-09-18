@@ -5,7 +5,9 @@
 #include <libvmi/events.h>
 #include <libvmi/libvmi_extra.h>
 #include <libvmi/x86.h>
+#include <r_debug.h>
 #include <glib.h>
+
 
 typedef struct {
     char *vm_name;
@@ -30,6 +32,8 @@ typedef struct
     RIOVmi *rio_vmi;
     uint64_t pid_cr3;
     addr_t bp_vaddr;
+    RBreakpoint* bp;
+    RBreakpointItem *bpitem;
 } bp_event_data;
 
 #endif // IO_VMI_H

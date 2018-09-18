@@ -188,7 +188,10 @@ static int __write(RIO *io, RIODesc *fd, const ut8 *buf, int len) {
     size_t bytes_written = 0;
     access_context_t ctx;
 
-    printf("%s\n", __func__);
+    eprintf("%s\n", __func__);
+
+//    for (int i = 0; i < len; i++)
+//        eprintf("%s buffer[%d]: %x\n", __func__, i, buf[i]);
 
     if (!fd || !fd->data)
         return -1;
