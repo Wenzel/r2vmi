@@ -419,7 +419,7 @@ static RList *__map_get(RDebug* dbg) {
     {
         addr_t pte_value = 0;
         page_info_t *page = loop->data;
-        int permissions = R_IO_READ;
+        int permissions = R_PERM_R;
         int supervisor = 0;
         char str_nb[20];
 
@@ -436,7 +436,7 @@ static RList *__map_get(RDebug* dbg) {
         case VMI_PM_PAE:
             pte_value = page->x86_pae.pte_value;
             if (!VMI_GET_BIT(pte_value, 63))
-                permissions |= R_IO_EXEC;
+                permissions |= R_PERM_X;
             break;
         case VMI_PM_IA32E:
             pte_value = page->x86_ia32e.pte_value;
@@ -448,7 +448,7 @@ static RList *__map_get(RDebug* dbg) {
         }
         supervisor = USER_SUPERVISOR(pte_value);
         if (READ_WRITE(pte_value))
-            permissions |= R_IO_WRITE;
+            permissions |= R_PERM_W;
         // build RDebugMap
         addr_t map_start = page->vaddr;
         addr_t map_end = page->vaddr + page->size;
