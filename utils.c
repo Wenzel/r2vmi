@@ -85,14 +85,14 @@ char* dtb_to_pname(vmi_instance_t vmi, addr_t dtb) {
     status = vmi_get_offset(vmi, "win_tasks", &tasks_offset);
     if (VMI_FAILURE == status)
     {
-        printf("failed\n");
+        eprintf("failed\n");
         return NULL;
     }
 
     status = vmi_get_offset(vmi, "win_pdbase", &pdb_offset);
     if (VMI_FAILURE == status)
     {
-        printf("failed\n");
+        eprintf("failed\n");
         return NULL;
     }
 
