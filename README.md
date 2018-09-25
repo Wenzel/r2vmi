@@ -10,13 +10,22 @@ leveraging _Virtual Machine Introspection_.
 Based on `Libvmi` to access the VM memory and listen on hardware events.
 
 What works:
-- Intercept a process by name/PID
+- Intercept a process by name/PID (_at `CR3` load_)
 - Read the registers
 - Single-step the process execution
-- Set memory breakpoints (_The page must be mapped_)
+- Set breakpoints
+    - software
+    - hardware (_based on memory access permissions, page must be mapped_)
 - Load Kernel symbols
 
 # Demo
+
+The following demonstrate how `r2vmi`:
+- intercepts the `firefox` process
+- sets a memory access breakpoint on `NtOpenKey`
+- how the breakpoint is hit
+- using `radare2` to disassemble `NtOpenKey`'s function
+- singlestep the execution and watch the modification on the registers
 
 ![R2VMI_DEMO](https://github.com/Wenzel/wenzel.github.io/raw/master/public/images/r2vmi_demo.gif)
 
