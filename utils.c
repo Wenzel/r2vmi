@@ -99,19 +99,19 @@ char* dtb_to_pname(vmi_instance_t vmi, addr_t dtb) {
     status = vmi_get_offset(vmi, "win_pname", &name_offset);
     if (VMI_FAILURE == status)
     {
-        printf("failed\n");
+        eprintf("failed\n");
         return NULL;
     }
     status = vmi_translate_ksym2v(vmi, "PsActiveProcessHead", &ps_head);
     if (VMI_FAILURE == status)
     {
-        printf("failed\n");
+        eprintf("failed\n");
         return NULL;
     }
     status = vmi_read_addr_ksym(vmi, "PsActiveProcessHead", &flink);
     if (VMI_FAILURE == status)
     {
-        printf("failed\n");
+        eprintf("failed\n");
         return NULL;
     }
 
@@ -139,7 +139,7 @@ char* dtb_to_pname(vmi_instance_t vmi, addr_t dtb) {
     status = vmi_read_addr_va(vmi, start_proc + pdb_offset, 0, &value);
     if (VMI_FAILURE == status)
     {
-        printf("fail to read CR3\n");
+        eprintf("fail to read CR3\n");
         return NULL;
     }
     if (value == dtb)
@@ -169,13 +169,13 @@ status_t vmi_dtb_to_pid_extended_idle(vmi_instance_t vmi, addr_t dtb, vmi_pid_t 
         status = vmi_get_offset(vmi, "win_pid", &pid_offset);
         if (VMI_FAILURE == status)
         {
-            printf("fail to get offset\n");
+            eprintf("fail to get offset\n");
             return VMI_FAILURE;
         }
         status = vmi_read_32_va(vmi, start_proc + pid_offset, 0, (uint32_t*)pid);
         if (VMI_FAILURE == status)
         {
-            printf("fail to read pid");
+            eprintf("fail to read pid");
             return VMI_FAILURE;
         }
     }
@@ -188,7 +188,7 @@ static event_response_t cb_on_cr3_load(vmi_instance_t vmi, vmi_event_t *event){
     pid_t pid = 0;
     char* proc_name = NULL;
 
-    printf("%s\n", __func__);
+    eprintf("%s\n", __func__);
 
     if(!event || event->type != VMI_EVENT_REGISTER || !event->data) {
         eprintf("ERROR (%s): invalid event encounted\n", __func__);
@@ -202,7 +202,7 @@ static event_response_t cb_on_cr3_load(vmi_instance_t vmi, vmi_event_t *event){
     proc_name = dtb_to_pname(vmi, event->reg_event.value);
     if (!proc_name)
     {
-        printf("CR3: 0x%lx can't find process\n", event->reg_event.value);
+        eprintf("CR3: 0x%lx can't find process\n", event->reg_event.value);
         // stop monitoring
         interrupted = true;
         // pause the VM before we get out of main loop
@@ -229,7 +229,7 @@ static event_response_t cb_on_cr3_load(vmi_instance_t vmi, vmi_event_t *event){
         return 0;
     }
 
-    printf("Intercepted PID: %d, CR3: 0x%lx, Name: %s, RIP: 0x%lx\n",
+    eprintf("Intercepted PID: %d, CR3: 0x%lx, Name: %s, RIP: 0x%lx\n",
            pid, event->reg_event.value, proc_name, event->x86_regs->rip);
 
     if (is_target_process(rio_vmi, proc_name, event->reg_event.value))
@@ -237,7 +237,7 @@ static event_response_t cb_on_cr3_load(vmi_instance_t vmi, vmi_event_t *event){
         // delete old and maybe partial name for the full proc name
         free(rio_vmi->proc_name);
         rio_vmi->proc_name = strdup(proc_name);
-        printf("Found %s (%d)!\n", rio_vmi->proc_name, rio_vmi->pid);
+        eprintf("Found %s (%d)!\n", rio_vmi->proc_name, rio_vmi->pid);
         // stop monitoring
         interrupted = true;
         // pause the VM before we get out of main loop
@@ -263,7 +263,7 @@ static event_response_t cb_on_sstep(vmi_instance_t vmi, vmi_event_t *event)
     breakpoint_cb_data *cb_data = NULL;
     char *proc_name = NULL;
 
-    printf("%s\n", __func__);
+    eprintf("%s\n", __func__);
 
     if(!event || event->type != VMI_EVENT_SINGLESTEP || !event->data) {
         eprintf("ERROR (%s): invalid event encounted\n", __func__);
@@ -285,7 +285,7 @@ static event_response_t cb_on_sstep(vmi_instance_t vmi, vmi_event_t *event)
             return VMI_EVENT_RESPONSE_NONE;
         }
         // toggle singlestep OFF
-        printf("out of the targeted page\n");
+        eprintf("out of the targeted page\n");
         return VMI_EVENT_RESPONSE_TOGGLE_SINGLESTEP;
     }
 
@@ -300,7 +300,7 @@ static event_response_t cb_on_sstep(vmi_instance_t vmi, vmi_event_t *event)
     if (!proc_name)
         proc_name = "NEW_PROCESS.EXE";
 
-    printf("At KiStartUserThread: %s, CR3: 0x%lx\n", proc_name, event->x86_regs->cr3);
+    eprintf("At KiStartUserThread: %s, CR3: 0x%lx\n", proc_name, event->x86_regs->cr3);
     if (is_target_process(cb_data->rio_vmi, proc_name, event->x86_regs->cr3))
     {
         status = vmi_pause_vm(vmi);
@@ -323,7 +323,7 @@ static event_response_t cb_on_continue_until_event(vmi_instance_t vmi, vmi_event
     breakpoint_cb_data *cb_data;
     const char* proc_name = NULL;
 
-    printf("%s\n", __func__);
+    eprintf("%s\n", __func__);
 
     if(!event || event->type != VMI_EVENT_MEMORY || !event->data) {
         eprintf("ERROR (%s): invalid event encounted\n", __func__);
@@ -353,7 +353,7 @@ static event_response_t cb_on_continue_until_event(vmi_instance_t vmi, vmi_event
     if (!proc_name)
         proc_name = "NEW_PROCESS.EXE";
 
-    printf("At KiStartUserThread: %s, CR3: 0x%lx\n", proc_name, event->x86_regs->cr3);
+    eprintf("At KiStartUserThread: %s, CR3: 0x%lx\n", proc_name, event->x86_regs->cr3);
     if (is_target_process(cb_data->rio_vmi, proc_name, event->x86_regs->cr3))
     {
         status = vmi_pause_vm(vmi);
@@ -370,7 +370,7 @@ static event_response_t cb_on_continue_until_event(vmi_instance_t vmi, vmi_event
 
 static bool continue_until(RIOVmi *rio_vmi, addr_t addr, bool kernel_translate)
 {
-    printf("%s\n", __func__);
+    eprintf("%s\n", __func__);
     status_t status;
     addr_t paddr;
     addr_t gfn;
@@ -440,7 +440,7 @@ static bool continue_until(RIOVmi *rio_vmi, addr_t addr, bool kernel_translate)
     while (!interrupted)
     {
         int nb_events = vmi_are_events_pending(rio_vmi->vmi);
-        printf("Listening on VMI events...%d events pending\n", nb_events);
+        eprintf("Listening on VMI events...%d events pending\n", nb_events);
         status = vmi_events_listen(rio_vmi->vmi, 1000);
         if (status == VMI_FAILURE)
         {
@@ -492,27 +492,27 @@ static addr_t find_eprocess(vmi_instance_t vmi, uint64_t dtb)
     status = vmi_get_offset(vmi, "win_tasks", &tasks_offset);
     if (VMI_FAILURE == status)
     {
-        printf("failed\n");
+        eprintf("failed\n");
         return 0;
     }
 
     status = vmi_get_offset(vmi, "win_pdbase", &pdb_offset);
     if (VMI_FAILURE == status)
     {
-        printf("failed\n");
+        eprintf("failed\n");
         return 0;
     }
 
     status = vmi_translate_ksym2v(vmi, "PsActiveProcessHead", &ps_head);
     if (VMI_FAILURE == status)
     {
-        printf("failed\n");
+        eprintf("failed\n");
         return 0;
     }
     status = vmi_read_addr_ksym(vmi, "PsActiveProcessHead", &flink);
     if (VMI_FAILURE == status)
     {
-        printf("failed\n");
+        eprintf("failed\n");
         return 0;
     }
 
@@ -554,7 +554,7 @@ static bool is_userland(uint64_t rflag)
 {
     // extract the IOPL field
     int iopl = rflag & ((1 << 13) | (1 << 12));
-    printf("iopl: %d\n", iopl);
+    eprintf("iopl: %d\n", iopl);
     return (iopl == 3) ? true : false;
 }
 
@@ -562,7 +562,7 @@ static event_response_t cb_on_sstep_until_userland(vmi_instance_t vmi, vmi_event
 {
     uint64_t rflag;
 
-    printf("%s\n", __func__);
+    eprintf("%s\n", __func__);
 
     if(!event || event->type != VMI_EVENT_SINGLESTEP) {
         eprintf("ERROR (%s): invalid event encounted\n", __func__);
@@ -573,15 +573,15 @@ static event_response_t cb_on_sstep_until_userland(vmi_instance_t vmi, vmi_event
     addr_t paddr = 0;
     vmi_translate_kv2p(vmi, event->x86_regs->rip, &paddr);
     addr_t gfn = paddr >> 12;
-    printf("Checking for mem event on page: 0x%" PRIx64 "\n", gfn);
+    eprintf("Checking for mem event on page: 0x%" PRIx64 "\n", gfn);
     vmi_event_t *mem_event = vmi_get_mem_event(vmi, gfn, VMI_MEMACCESS_X);
     if (mem_event != NULL)
     {
-        printf("Mem event found !\n");
+        eprintf("Mem event found !\n");
     }
 
     rflag = event->x86_regs->rflags;
-    printf("rflag: 0x%" PRIx64 ", rip: 0x%" PRIx64 "\n", rflag, event->x86_regs->rip);
+    eprintf("rflag: 0x%" PRIx64 ", rip: 0x%" PRIx64 "\n", rflag, event->x86_regs->rip);
     if (is_userland(rflag))
     {
         vmi_pause_vm(vmi);
@@ -597,7 +597,7 @@ bool attach_new_process(RDebug *dbg)
     status_t status;
     addr_t start_thread_addr;
 
-    printf("%s\n", __func__);
+    eprintf("%s\n", __func__);
 
     desc = dbg->iob.io->desc;
     rio_vmi = desc->data;
@@ -614,7 +614,7 @@ bool attach_new_process(RDebug *dbg)
         }
     }
 
-    printf("KiStartUserThread: 0x%lx\n", start_thread_addr);
+    eprintf("KiStartUserThread: 0x%lx\n", start_thread_addr);
     continue_until(rio_vmi, start_thread_addr, true);
 
     addr_t eproc = find_eprocess(rio_vmi->vmi, rio_vmi->pid_cr3);
@@ -623,7 +623,7 @@ bool attach_new_process(RDebug *dbg)
         eprintf("Cannot find EPROCESS\n");
         return false;
     }
-    printf("EPROCESS 0x%lx\n", eproc);
+    eprintf("EPROCESS 0x%lx\n", eproc);
     addr_t ethread = find_ethread(rio_vmi->vmi, eproc);
     if (!ethread)
     {
@@ -638,9 +638,9 @@ bool attach_new_process(RDebug *dbg)
         eprintf("Cannot read Win32StartAddress\n");
         return false;
     }
-    printf("Win32StartAddress 0x%lx\n", w32_start_addr);
+    eprintf("Win32StartAddress 0x%lx\n", w32_start_addr);
 
-    printf("mode: %d\n", VMI_PM_IA32E);
+    eprintf("mode: %d\n", VMI_PM_IA32E);
 
     // singlestep until userland
     vmi_event_t sstep_event;
@@ -766,7 +766,7 @@ bool intercept_process(RDebug *dbg, int pid)
     RIOVmi *rio_vmi = NULL;
     status_t status = 0;
 
-    printf("Attaching to pid %d...\n", pid);
+    eprintf("Attaching to pid %d...\n", pid);
 
     desc = dbg->iob.io->desc;
     rio_vmi = desc->data;
@@ -806,7 +806,7 @@ bool intercept_process(RDebug *dbg, int pid)
     interrupted = false;
     while (!interrupted)
     {
-        printf("Listening on VMI events...\n");
+        eprintf("%s: Listening on VMI events...\n", __func__);
         status = vmi_events_listen(rio_vmi->vmi, 1000);
         if (status == VMI_FAILURE)
         {

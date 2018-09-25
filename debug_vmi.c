@@ -246,7 +246,7 @@ static int __attach(RDebug *dbg, int pid) {
     RIOVmi *rio_vmi = NULL;
     status_t status = 0;
 
-    printf("Attaching to pid %d...\n", pid);
+    eprintf("Attaching to pid %d...\n", pid);
 
     desc = dbg->iob.io->desc;
     rio_vmi = desc->data;
@@ -286,13 +286,13 @@ static int __attach(RDebug *dbg, int pid) {
 }
 
 static int __detach(__attribute__((unused)) RDebug *dbg, __attribute__((unused)) int pid) {
-    printf("%s\n", __func__);
+    eprintf("%s\n", __func__);
 
     return 1;
 }
 
 static RList* __threads(__attribute__((unused)) RDebug *dbg, __attribute__((unused)) int pid) {
-    printf("%s\n", __func__);
+    eprintf("%s\n", __func__);
 
     return NULL;
 }
@@ -328,7 +328,7 @@ static RDebugReasonType __wait(RDebug *dbg, __attribute__((unused)) int pid) {
     // exit because of CTRL-C ?
     if (r_cons_is_breaked())
     {
-        printf("CTRL-C !\n");
+        eprintf("CTRL-C !\n");
         intercept_process(dbg, rio_vmi->pid);
     }
     r_cons_break_pop();
@@ -473,7 +473,7 @@ static RList *__map_get(RDebug* dbg) {
 }
 
 static RList* __modules_get(__attribute__((unused)) RDebug *dbg) {
-    printf("%s\n", __func__);
+    eprintf("%s\n", __func__);
 
     return NULL;
 }
@@ -657,7 +657,7 @@ static const char *__reg_profile(RDebug *dbg) {
 static bool __kill(RDebug *dbg, __attribute__((unused)) int pid, __attribute__((unused)) int tid, int sig) {
     RIODesc *desc = NULL;
     RIOVmi *rio_vmi = NULL;
-    printf("%s, sig: %d\n", __func__, sig);
+    eprintf("%s, sig: %d\n", __func__, sig);
 
     desc = dbg->iob.io->desc;
     rio_vmi = desc->data;
@@ -795,7 +795,6 @@ static int __reg_read(RDebug *dbg, int type, ut8 *buf, int size) {
         return 1;
     }
     buf_size = 128 + sizeof(uint64_t);
-    // printf("RIP: %p\n", regs.x86.rip);
 
     return buf_size;
 }

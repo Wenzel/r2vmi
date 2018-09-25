@@ -14,7 +14,7 @@ extern RIOPlugin r_io_plugin_vmi; // forward declaration
 
 static void rio_vmi_destroy(RIOVmi *ptr)
 {
-    printf("%s\n", __func__);
+    eprintf("%s\n", __func__);
     if (ptr)
     {
         if (ptr->vm_name)
@@ -48,7 +48,7 @@ static bool __plugin_open(__attribute__((unused)) RIO *io, const char *pathname,
 }
 
 static RIODesc *__open(RIO *io, const char *pathname, int flags, int mode) {
-    printf("%s\n", __func__);
+    eprintf("%s\n", __func__);
     RIODesc *ret = NULL;
     RIOVmi *rio_vmi = NULL;
     const char *delimiter = ":";
@@ -99,9 +99,9 @@ static RIODesc *__open(RIO *io, const char *pathname, int flags, int mode) {
     else
         rio_vmi->pid = pid;
     if (rio_vmi->url_identify_by_name)
-        printf("VM: %s, process name: %s\n", rio_vmi->vm_name, rio_vmi->proc_name);
+        eprintf("VM: %s, process name: %s\n", rio_vmi->vm_name, rio_vmi->proc_name);
     else
-        printf("VM: %s, PID: %d\n", rio_vmi->vm_name, rio_vmi->pid);
+        eprintf("VM: %s, PID: %d\n", rio_vmi->vm_name, rio_vmi->pid);
 
     // init libvmi
     printf("Initializing LibVMI\n");
@@ -126,7 +126,7 @@ out:
 static int __close(RIODesc *fd) {
     RIOVmi *rio_vmi = NULL;
 
-    printf("%s\n", __func__);
+    eprintf("%s\n", __func__);
     if (!fd || !fd->data)
         return -1;
 
@@ -212,11 +212,11 @@ static int __write(RIO *io, RIODesc *fd, const ut8 *buf, int len) {
 }
 
 static int __getpid(RIODesc *fd) {
-    printf("%s\n", __func__);
+    eprintf("%s\n", __func__);
 
     RIOVmi *rio_vmi = NULL;
 
-    printf("%s\n", __func__);
+    eprintf("%s\n", __func__);
     if (!fd || !fd->data)
         return -1;
 
@@ -225,7 +225,7 @@ static int __getpid(RIODesc *fd) {
 }
 
 static int __gettid(__attribute__((unused)) RIODesc *fd) {
-    printf("%s\n", __func__);
+    eprintf("%s\n", __func__);
     return 0;
 }
 
