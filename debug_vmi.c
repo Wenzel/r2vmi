@@ -73,7 +73,7 @@ static event_response_t cb_on_sstep(vmi_instance_t vmi, vmi_event_t *event) {
     status_t status;
     bp_event_data *event_data = NULL;
 
-    printf("%s\n", __func__);
+    eprintf("%s\n", __func__);
 
     if(!event || event->type != VMI_EVENT_SINGLESTEP) {
         eprintf("ERROR (%s): invalid event encounted\n", __func__);
@@ -112,7 +112,7 @@ static event_response_t cb_on_int3(vmi_instance_t vmi, vmi_event_t *event){
     char *proc_name = NULL;
     RIOVmi *rio_vmi = NULL;
 
-    printf("%s\n", __func__);
+    eprintf("%s\n", __func__);
 
     if(!event || event->type != VMI_EVENT_INTERRUPT || !event->data) {
         eprintf("ERROR (%s): invalid event encounted\n", __func__);
@@ -169,7 +169,7 @@ static int __step(RDebug *dbg) {
     RIOVmi *rio_vmi = NULL;
     status_t status;
 
-    printf("%s\n", __func__);
+    eprintf("%s\n", __func__);
 
     desc = dbg->iob.io->desc;
     rio_vmi = desc->data;
@@ -411,6 +411,7 @@ static RList *__map_get(RDebug* dbg) {
         eprintf("Fail to get va pages\n");
         return NULL;
     }
+
 
     RList *r_maps = r_list_newf((RListFree) r_debug_map_free);
     GSList *loop = va_pages;
