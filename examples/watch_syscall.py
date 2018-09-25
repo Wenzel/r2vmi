@@ -84,9 +84,9 @@ def main(args):
     while not interrupted:
         # continue
         r2.cmd('dc')
+        # bp hit !
         # get registers
         registers = r2.cmdj('drj')
-        # bp hit !
         object_attributes_addr = registers['r8']
         object_name_addr = read_field(r2, win_types['object_name'], object_attributes_addr)
         buffer_addr = read_field(r2, win_types['buffer'], object_name_addr)
