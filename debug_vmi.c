@@ -190,6 +190,7 @@ static int __step(RDebug *dbg) {
     }
 
     // resetup singlestep event, enabled
+    bzero(rio_vmi->sstep_event, sizeof(vmi_event_t));
     SETUP_SINGLESTEP_EVENT(rio_vmi->sstep_event, 1u << 0, cb_on_sstep, true);
     // clear data field (not a software breakpoint)
     rio_vmi->sstep_event->data = NULL;
@@ -261,16 +262,7 @@ static int __attach(RDebug *dbg, int pid) {
     // set attached to allow reg_read
     rio_vmi->attached = true;
 
-    // init singlestep event (not enabled)
     rio_vmi->sstep_event = R_NEW0(vmi_event_t);
-    SETUP_SINGLESTEP_EVENT(rio_vmi->sstep_event, 1u << 0, cb_on_sstep, false);
-    // register event
-    status = vmi_register_event(rio_vmi->vmi, rio_vmi->sstep_event);
-    if (VMI_FAILURE == status)
-    {
-        eprintf("%s: fail to register event\n", __func__);
-        return 1;
-    }
 
     // did we attached to a new process ?
     if (rio_vmi->attach_new_process)
@@ -280,6 +272,16 @@ static int __attach(RDebug *dbg, int pid) {
     else
     {
         eprintf("Attaching to existing process is not implemented\n");
+    }
+
+    // init singlestep event (not enabled)
+    SETUP_SINGLESTEP_EVENT(rio_vmi->sstep_event, 1u << 0, cb_on_sstep, false);
+    // register event
+    status = vmi_register_event(rio_vmi->vmi, rio_vmi->sstep_event);
+    if (VMI_FAILURE == status)
+    {
+        eprintf("%s: fail to register event\n", __func__);
+        return 1;
     }
 
     return 0;
@@ -355,6 +357,7 @@ static RDebugReasonType __wait(RDebug *dbg, __attribute__((unused)) int pid) {
         }
 
         // set singlestep event, disabled
+        bzero(rio_vmi->sstep_event, sizeof(vmi_event_t));
         SETUP_SINGLESTEP_EVENT(rio_vmi->sstep_event, 1u << 0, cb_on_sstep, false);
         rio_vmi->sstep_event->data = NULL;
         // register it
