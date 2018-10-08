@@ -770,8 +770,16 @@ static int __reg_read(RDebug *dbg, int type, ut8 *buf, int size) {
     case R_SYS_ARCH_X86:
         switch (bits) {
         case 32:
-            eprintf("Bits not supported\n");
-            return 1;
+            memcpy(buf      , &(regs.x86.rax), sizeof(uint32_t));
+            memcpy(buf + 4  , &(regs.x86.rcx), sizeof(uint32_t));
+            memcpy(buf + 8 , &(regs.x86.rdx), sizeof(uint32_t));
+            memcpy(buf + 12 , &(regs.x86.rbx), sizeof(uint32_t));
+            memcpy(buf + 16 , &(regs.x86.rsp), sizeof(uint32_t));
+            memcpy(buf + 20 , &(regs.x86.rbp), sizeof(uint32_t));
+            memcpy(buf + 24 , &(regs.x86.rsi), sizeof(uint32_t));
+            memcpy(buf + 28 , &(regs.x86.rdi), sizeof(uint32_t));
+            memcpy(buf + 32 , &(regs.x86.rip), sizeof(uint32_t));
+            break;
         case 64:
             memcpy(buf      , &(regs.x86.rax), sizeof(regs.x86.rax));
             memcpy(buf + 8  , &(regs.x86.rbx), sizeof(regs.x86.rbx));
