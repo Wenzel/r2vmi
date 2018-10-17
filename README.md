@@ -20,12 +20,18 @@ What works:
 
 # Demo
 
+[High quality link](https://drive.google.com/file/d/1R63TdJiP3TjN4t-4FFiPjSFajqfXgZ0C/view?usp=sharing)
+
 The following demonstrate how `r2vmi`:
-- intercepts the `firefox` process
-- sets a memory access breakpoint on `NtOpenKey`
-- how the breakpoint is hit
-- using `radare2` to disassemble `NtOpenKey`'s function
-- singlestep the execution and watch the modification on the registers
+- intercepts `explorer.exe` process
+- sets a `software` breakpoint on `NtOpenKey`
+- how the breakpoint is hit (_ignoring hits by not targeted processes_)
+- using `radare2` to disassemble `NtOpenFile`'s function
+- singlestep the execution
+- opening a `Rekall` shell usin the [`VMIAddressSpace`](https://github.com/google/rekall/blob/master/rekall-core/rekall/plugins/addrspaces/vmi.py) to work on the VM's physical memory
+- running `pslist` plugin
+- running `dlllist` plugin and selecting a random `DLL`'s base address
+- seeking there in `radare2` and displaying the `MZ` header
 
 ![R2VMI_DEMO](https://github.com/Wenzel/wenzel.github.io/raw/master/public/images/r2vmi_demo.gif)
 
