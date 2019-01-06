@@ -9,6 +9,11 @@ leveraging _Virtual Machine Introspection_.
 
 Based on `Libvmi` to access the VM memory and listen on hardware events.
 
+_Note: since hack.lu 2018, I shifted my work towards an **improved** version of this
+project which is more **flexible** and open to any reverse-engineering framework that can act as a **GDB frontend**:_
+
+https://github.com/Wenzel/pyvmidbg
+
 What works:
 - Intercept a process by name/PID (_at `CR3` load_)
 - Read the registers
